@@ -1,0 +1,11 @@
+packages:
+  - extensions
+  - webview-ui
+  - backend
+
+ignoredBuiltDependencies:
+  - '@prisma/client'
+  - '@prisma/engines'
+  - esbuild
+  - keytar
+  - prisma

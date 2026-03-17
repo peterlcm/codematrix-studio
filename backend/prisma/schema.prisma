@@ -1,0 +1,194 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String          @id @default(uuid())
+  email        String          @unique
+  name         String?
+  passwordHash String?
+  avatarUrl    String?
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+
+  // Relations
+  projects     ProjectUser[]
+  ownedProjects Project[]
+  comments     Comment[]
+  approvals    StageApproval[]
+  sessions     Session[]
+  approvedStages Stage[]        @relation("StageApprovedBy")
+  projectInvites ProjectInvite[]
+}
+
+model Session {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+}
+
+model Project {
+  id          String    @id @default(uuid())
+  name        String
+  description String?
+  ownerId     String
+  owner       User      @relation(fields: [ownerId], references: [id])
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  archivedAt  DateTime?
+
+  // Relations
+  team        ProjectUser[]
+  workflows   Workflow[]
+  invites     ProjectInvite[]
+}
+
+model ProjectUser {
+  id        String   @id @default(uuid())
+  projectId String
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role      ProjectRole @default(EDITOR)
+  joinedAt  DateTime @default(now())
+
+  @@unique([projectId, userId])
+}
+
+model ProjectInvite {
+  id          String      @id @default(uuid())
+  projectId   String
+  project     Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  token       String      @unique
+  role        ProjectRole @default(VIEWER)
+  expiresAt   DateTime
+  createdAt   DateTime    @default(now())
+  createdById String
+  createdBy   User        @relation(fields: [createdById], references: [id])
+
+  @@index([token])
+}
+
+enum ProjectRole {
+  OWNER
+  EDITOR
+  VIEWER
+}
+
+model Workflow {
+  id           String         @id @default(uuid())
+  projectId    String
+  project      Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  currentStage StageType      @default(PRD_DESIGN)
+  status       WorkflowStatus @default(ACTIVE)
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  // Relations
+  stages       Stage[]
+}
+
+enum StageType {
+  PRD_DESIGN
+  UI_UX_DESIGN
+  DEVELOPMENT
+  TESTING
+}
+
+enum StageStatus {
+  PENDING
+  AI_PROCESSING
+  READY_FOR_REVIEW
+  REVISION_REQUESTED
+  APPROVED
+  COMPLETED
+}
+
+enum WorkflowStatus {
+  ACTIVE
+  PAUSED
+  COMPLETED
+  CANCELLED
+}
+
+model Stage {
+  id            String        @id @default(uuid())
+  workflowId    String
+  workflow      Workflow      @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  stageType     StageType
+  status        StageStatus   @default(PENDING)
+  title         String
+  aiContent     String?       // AI-generated content (markdown for PRD/UI design, code for dev/testing)
+  humanContent  String?       // Human-edited content
+  version       Int           @default(1)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  // Approval tracking
+  approved      Boolean       @default(false)
+  approvedById  String?
+  approvedBy    User?         @relation("StageApprovedBy", fields: [approvedById], references: [id])
+  approvedAt    DateTime?
+
+  // Relations
+  comments      Comment[]
+  approvals     StageApproval[]
+}
+
+model Comment {
+  id        String   @id @default(uuid())
+  stageId   String
+  stage     Stage    @relation(fields: [stageId], references: [id], onDelete: Cascade)
+  authorId  String
+  author    User     @relation(fields: [authorId], references: [id])
+  content   String
+  threadId  String?  // For comment threads
+  position  Json?    // For code position highlighting {line, column}
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model StageApproval {
+  id            String   @id @default(uuid())
+  stageId       String
+  stage         Stage    @relation(fields: [stageId], references: [id], onDelete: Cascade)
+  userId        String
+  user          User     @relation(fields: [userId], references: [id])
+  approved      Boolean
+  feedback      String?
+  createdAt     DateTime @default(now())
+
+  @@unique([stageId, userId])
+}
+
+// Plugin system models
+model Plugin {
+  id        String   @id @default(uuid())
+  pluginId  String   @unique
+  enabled   Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  storage   PluginStorage[]
+}
+
+model PluginStorage {
+  id        String   @id @default(uuid())
+  pluginId  String
+  plugin    Plugin   @relation(fields: [pluginId], references: [id], onDelete: Cascade)
+  key       String
+  value     String   // JSON stringified
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([pluginId, key])
+}

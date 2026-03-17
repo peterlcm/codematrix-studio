@@ -1,0 +1,31 @@
+# Development Dockerfile for VS Code Extension
+FROM node:20-bookworm
+
+WORKDIR /app
+
+# Install system dependencies for native modules (esbuild, keytar, etc.)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libssl3 \
+    libffi8 \
+    libncurses6 \
+    pkg-config \
+    python3 \
+    make \
+    g++ \
+    libsecret-1-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Use npm registry mirror
+RUN npm config set registry https://registry.npmmirror.com
+
+# Copy all files
+COPY . .
+
+# Install with legacy-peer-deps and allow scripts
+RUN npm install --legacy-peer-deps
+
+# Expose port for debug
+EXPOSE 3000
+
+# Start with watch mode
+CMD ["npm", "run", "dev"]

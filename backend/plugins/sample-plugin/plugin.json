@@ -1,0 +1,20 @@
+{
+  "id": "sample-plugin",
+  "name": "Sample Plugin",
+  "version": "1.0.0",
+  "description": "A sample plugin demonstrating the plugin system",
+  "author": "CodeMatrix Team",
+  "main": "index.js",
+  "configSchema": {
+    "greeting": {
+      "type": "string",
+      "default": "Hello",
+      "description": "Greeting message"
+    },
+    "enableLogging": {
+      "type": "boolean",
+      "default": true,
+      "description": "Enable logging"
+    }
+  }
+}

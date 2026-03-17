@@ -1,0 +1,36 @@
+# Development Dockerfile - Use Debian for Prisma compatibility
+FROM node:20-bookworm
+
+WORKDIR /app
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libssl3 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install pnpm
+RUN corepack enable && corepack prepare pnpm@latest --activate
+
+# Use npm registry mirror
+RUN npm config set registry https://registry.npmmirror.com
+
+# Install all dependencies including peer dependencies
+COPY package.json ./
+COPY pnpm-lock.yaml* ./
+RUN pnpm install --force
+
+# Generate Prisma Client
+COPY prisma ./prisma/
+RUN pnpm prisma:generate
+
+# Copy source code
+COPY . .
+
+# Create plugins directory
+RUN mkdir -p /app/plugins
+
+# Expose ports
+EXPOSE 3001 9229
+
+# Start with hot reload
+CMD ["pnpm", "dev"]

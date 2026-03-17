@@ -1,0 +1,36 @@
+{
+  "name": "codematrix-studio",
+  "version": "0.1.0",
+  "description": "AI+Human Collaborative Software Development Platform for VS Code",
+  "private": true,
+  "workspaces": [
+    "extensions",
+    "webview-ui",
+    "backend"
+  ],
+  "scripts": {
+    "dev": "pnpm dev:all",
+    "dev:extension": "cd extensions && pnpm dev",
+    "dev:backend": "cd backend && pnpm dev",
+    "dev:webview": "cd webview-ui && pnpm dev",
+    "build": "pnpm build:webview && pnpm build:extension && pnpm build:backend",
+    "build:webview": "cd webview-ui && pnpm build",
+    "build:extension": "cd extensions && pnpm build",
+    "build:backend": "cd backend && pnpm build",
+    "install:all": "pnpm install",
+    "lint": "pnpm lint:all"
+  },
+  "keywords": [
+    "vscode",
+    "ai",
+    "collaboration",
+    "development"
+  ],
+  "author": "CodeMatrix",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "prettier": "^3.1.0",
+    "typescript": "^5.3.0"
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "permissions": {
+    "allow": [
+      "WebSearch",
+      "Bash(which pnpm:*)",
+      "Bash(node:*)",
+      "Bash(pnpm install:*)",
+      "Bash(cd:*)",
+      "Bash(pnpm build:*)",
+      "Bash(npx prisma:*)",
+      "Bash(npx tsc:*)",
+      "Bash(docker-compose:*)",
+      "Bash(docker compose:*)",
+      "Bash(which psql:*)",
+      "Bash(echo:*)",
+      "Bash(pnpm prisma:*)",
+      "Bash(curl:*)",
+      "Bash(docker:*)",
+      "Bash(ls:*)",
+      "Bash(pg_isready -h localhost -p 5432 -U codematrix 2>&1 && echo \"PostgreSQL: OK\")",
+      "Bash(pkill:*)",
+      "Bash(fuser:*)",
+      "Bash(git init:*1)"
+    ]
+  }
+}

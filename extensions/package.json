@@ -1,0 +1,79 @@
+{
+  "name": "codematrix-studio",
+  "displayName": "CodeMatrix Studio",
+  "publisher": "codematrix",
+  "description": "AI+Human Collaborative Software Development Platform",
+  "version": "0.1.0",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other",
+    "AI"
+  ],
+  "activationEvents": [
+    "onCommand:codematrix.initProject",
+    "onCommand:codematrix.openWorkspace",
+    "onView:codematrix.workflowSidebar"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "codematrix.initProject",
+        "title": "CodeMatrix: Initialize New Project"
+      },
+      {
+        "command": "codematrix.openWorkflow",
+        "title": "CodeMatrix: Open Workflow"
+      },
+      {
+        "command": "codematrix.approveStage",
+        "title": "CodeMatrix: Approve Current Stage"
+      },
+      {
+        "command": "codematrix.requestRevision",
+        "title": "CodeMatrix: Request Revision"
+      }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "codematrix",
+          "title": "CodeMatrix",
+          "icon": "media/icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "codematrix": [
+        {
+          "id": "codematrix.workflowSidebar",
+          "name": "Workflow",
+          "type": "tree"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "build": "esbuild ./src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --format=cjs --platform=node",
+    "dev": "npm run build -- --sourcemap --watch=forever",
+    "package": "vsce package",
+    "lint": "eslint src --ext ts"
+  },
+  "dependencies": {
+    "@types/ws": "^8.5.10",
+    "axios": "^1.6.2",
+    "socket.io-client": "^4.7.2",
+    "vscode-languageclient": "^9.0.1"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.85.0",
+    "@typescript-eslint/eslint-plugin": "^6.13.1",
+    "@typescript-eslint/parser": "^6.13.1",
+    "esbuild": "^0.19.8",
+    "eslint": "^8.54.0",
+    "typescript": "^5.3.2",
+    "vsce": "^2.15.0"
+  }
+}

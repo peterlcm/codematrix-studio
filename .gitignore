@@ -1,0 +1,60 @@
+# Dependencies
+node_modules
+.pnp
+.pnp.js
+.pnpm-store
+
+# Build output
+extensions/dist
+extensions/*.vsix
+webview-ui/dist
+backend/dist
+**/*.js.map
+!webview-ui/dist/.gitkeep
+
+# VS Code
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+!.vscode/snippets.json
+.idea
+*.swp
+*.swo
+*~
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+*.env
+
+# Database
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Testing
+coverage
+.nyc_output
+
+# Prisma
+prisma/migrations/*
+!prisma/migrations/migration_lock.toml
+
+# Temporary
+*.tmp
+*.temp
+.cache
