@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
+import * as fs from 'fs';
 import { MessageBus, MessageHandler } from './MessageBus';
 import { logger } from '../utils/logger';
 
@@ -40,6 +41,7 @@ export class WebviewManager implements MessageHandler {
           retainContextWhenHidden: true,
           localResourceRoots: [
             vscode.Uri.file(path.join(this.context.extensionPath, 'media')),
+            vscode.Uri.file(path.join(this.context.extensionPath, '..', 'webview-ui', 'dist')),
           ],
         }
       );
@@ -100,9 +102,23 @@ export class WebviewManager implements MessageHandler {
   }
 
   private getWebviewHtml(backendUrl: string, projectId: string): string {
-    // Use a placeholder that will be loaded from the built webview
-    // In production, this would point to the actual webview build
-    return `<!DOCTYPE html>
+    // Load the built index.html from webview-ui
+    const builtIndexPath = path.join(this.context.extensionPath, '..', 'webview-ui', 'dist', 'index.html');
+
+    try {
+      let html = fs.readFileSync(builtIndexPath, 'utf8');
+
+      // Update CSP to allow VS Code webview
+      const csp = `default-src 'self' https://*.vscode-cdn.net 'unsafe-inline' 'unsafe-eval'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; connect-src 'self' ${backendUrl} ws://localhost:* http://localhost:* wss://localhost:*; img-src 'self' data: https:; font-src 'self' data:;`;
+      html = html.replace(
+        /<meta http-equiv="Content-Security-Policy"[^>]*>/,
+        `<meta http-equiv="Content-Security-Policy" content="${csp}">`
+      );
+
+      return html;
+    } catch (error) {
+      // If built index.html not found, show instructions
+      return `<!DOCTYPE html>
 <html>
 <head>
   <meta charset="UTF-8">
@@ -116,22 +132,6 @@ export class WebviewManager implements MessageHandler {
       background-color: var(--vscode-editor-background);
       color: var(--vscode-editor-foreground);
     }
-    .loading {
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      height: 100vh;
-      flex-direction: column;
-    }
-    .spinner {
-      width: 40px;
-      height: 40px;
-      border: 3px solid var(--vscode-editorWidget-background);
-      border-top-color: var(--vscode-button-background);
-      border-radius: 50%;
-      animation: spin 1s linear infinite;
-    }
-    @keyframes spin { to { transform: rotate(360deg); } }
     .error {
       color: var(--vscode-errorForeground);
       text-align: center;
@@ -143,74 +143,25 @@ export class WebviewManager implements MessageHandler {
       max-width: 600px;
       margin: 0 auto;
     }
-    .instructions h1 { font-size: 1.5em; margin-bottom: 1em; }
+    .instructions h1 { font-size: 1.5em; margin-bottom: 1em; color: var(--vscode-errorForeground); }
     .instructions p { margin-bottom: 1em; line-height: 1.6; }
     .instructions code {
       background: var(--vscode-editorWidget-background);
       padding: 2px 6px;
       border-radius: 3px;
     }
-    .instructions .steps {
-      text-align: left;
-      background: var(--vscode-editorWidget-background);
-      padding: 20px;
-      border-radius: 6px;
-      margin: 20px 0;
-    }
-    .instructions .step {
-      margin: 10px 0;
-      display: flex;
-      align-items: center;
-    }
-    .instructions .step-number {
-      background: var(--vscode-button-background);
-      color: white;
-      width: 24px;
-      height: 24px;
-      border-radius: 50%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      margin-right: 10px;
-      font-size: 12px;
-    }
   </style>
 </head>
 <body>
   <div class="instructions">
-    <h1>🔄 CodeMatrix Studio</h1>
-    <p>AI+Human Collaborative Software Development Platform</p>
-
-    <div class="steps">
-      <div class="step">
-        <span class="step-number">1</span>
-        <span>Ensure backend is running: <code>cd backend && pnpm dev</code></span>
-      </div>
-      <div class="step">
-        <span class="step-number">2</span>
-        <span>Build webview UI: <code>cd webview-ui && pnpm build</code></span>
-      </div>
-      <div class="step">
-        <span class="step-number">3</span>
-        <span>Run <code>pnpm install:all</code> to install dependencies</code></span>
-      </div>
-    </div>
-
-    <p>After completing setup, use <code>CodeMatrix: Initialize New Project</code> to start.</p>
+    <h1>⚠️ Webview UI not built</h1>
+    <p>Please build the webview UI before opening:</p>
+    <pre style="text-align: left; background: var(--vscode-editorWidget-background); padding: 10px; border-radius: 4px;">cd webview-ui && pnpm install && pnpm build</pre>
+    <p>After building, close this panel and reopen the workflow.</p>
   </div>
-
-  <script>
-    const vscode = acquireVsCodeApi();
-    const projectId = "${projectId}";
-    const backendUrl = "${backendUrl}";
-
-    // Send init message
-    window.addEventListener('DOMContentLoaded', () => {
-      vscode.postMessage({ type: 'ready', payload: { projectId, backendUrl } });
-    });
-  </script>
 </body>
 </html>`;
+    }
   }
 
   private getSettingsHtml(): string {
