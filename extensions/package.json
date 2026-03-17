@@ -34,6 +34,18 @@
       {
         "command": "codematrix.requestRevision",
         "title": "CodeMatrix: Request Revision"
+      },
+      {
+        "command": "codematrix.login",
+        "title": "CodeMatrix: Login"
+      },
+      {
+        "command": "codematrix.logout",
+        "title": "CodeMatrix: Logout"
+      },
+      {
+        "command": "codematrix.openSettings",
+        "title": "CodeMatrix: Open Settings"
       }
     ],
     "viewsContainers": {
