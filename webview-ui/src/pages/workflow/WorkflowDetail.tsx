@@ -98,8 +98,8 @@ export default function WorkflowDetail() {
       <div className="page-container">
         <div className="error-container">
           <h3>Workflow not found</h3>
-          <button onClick={() => navigate(`/projects/${workflow?.projectId || ''}`)} className="btn btn-primary">
-            Back to Project
+          <button onClick={() => navigate('/projects')} className="btn btn-primary">
+            Back to Projects
           </button>
         </div>
       </div>

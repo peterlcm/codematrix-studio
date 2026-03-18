@@ -89,7 +89,6 @@ export default function WorkflowCreate() {
   const [error, setError] = useState('');
   const navigate = useNavigate();
 
-  const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(null);
   const [stages, setStages] = useState<StageConfig[]>([]);
   const [workflowName, setWorkflowName] = useState('Main Workflow');
 
@@ -111,7 +110,6 @@ export default function WorkflowCreate() {
   };
 
   const selectTemplate = (template: Template) => {
-    setSelectedTemplate(template);
     const initialStages: StageConfig[] = template.stages.map((s, index) => ({
       id: `stage-${index}`,
       title: s.title,
@@ -277,7 +275,6 @@ export default function WorkflowCreate() {
               <div
                 className="template-card blank"
                 onClick={() => {
-                  setSelectedTemplate(null);
                   setStages([]);
                   setStep('configure');
                 }}

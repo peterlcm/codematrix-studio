@@ -47,9 +47,10 @@ export default function App() {
           useWorkflowStore.getState().setCurrentStage(message.payload as Stage);
           break;
         case 'auth:status':
+          const payload = message.payload as { authenticated: boolean; user?: User };
           useWorkflowStore.getState().setAuthStatus(
-            (message.payload as { authenticated: boolean }).authenticated,
-            { user: (message.payload as { user?: User }).user }
+            payload.authenticated,
+            payload.user ? { user: payload.user } : undefined
           );
           break;
         case 'error':

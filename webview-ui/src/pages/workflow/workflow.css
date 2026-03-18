@@ -199,7 +199,6 @@
 }
 
 .timeline-item {
-  position: 1px
   position: relative;
   padding-left: 60px;
   padding-bottom: 2rem;
@@ -282,7 +281,6 @@
 }
 
 .timeline-footer {
-  display: \;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -303,7 +301,6 @@
 }
 
 .editor-toolbar {
-  display: \;
   display: flex;
   justify-content: space-between;
   align-items: center;
