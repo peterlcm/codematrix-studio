@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import axios from 'axios';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 
@@ -28,6 +28,10 @@ if (token) {
 }
 
 export default function BrowserApp() {
+  const [isAuthenticated, setIsAuthenticated] = useState(() => {
+    return !!localStorage.getItem('codematrix-token');
+  });
+
   useEffect(() => {
     // Add dark mode class based on system preference
     if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
@@ -37,21 +41,23 @@ export default function BrowserApp() {
     // Check if token is valid on app load
     const checkAuth = async () => {
       const currentToken = localStorage.getItem('codematrix-token');
-      if (!currentToken) return;
+      if (!currentToken) {
+        setIsAuthenticated(false);
+        return;
+      }
 
       try {
         await axios.get(`${API_BASE_URL}/api/v1/users/me`);
+        setIsAuthenticated(true);
       } catch (err) {
         localStorage.removeItem('codematrix-token');
         delete axios.defaults.headers.common['Authorization'];
-        window.location.href = '/auth/login';
+        setIsAuthenticated(false);
       }
     };
 
     checkAuth();
   }, []);
-
-  const isAuthenticated = !!localStorage.getItem('codematrix-token');
 
   return (
     <BrowserRouter>
