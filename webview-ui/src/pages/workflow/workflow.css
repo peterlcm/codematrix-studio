@@ -1,0 +1,429 @@
+.template-selection {
+  max-width: 1000px;
+  margin: 0 auto;
+}
+
+.template-selection h2 {
+  margin: 0 0 0.5rem 0;
+  font-size: 1.75rem;
+  color: var(--text-primary);
+}
+
+.template-selection .subtitle {
+  color: var(--text-secondary);
+  margin-bottom: 2rem;
+}
+
+.templates-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 1.5rem;
+}
+
+.template-card {
+  border: 2px solid var(--border-color);
+  border-radius: 8px;
+  padding: 1.5rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  background: var(--bg-primary);
+}
+
+.template-card:hover {
+  border-color: var(--primary-color);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  transform: translateY(-2px);
+}
+
+.template-card.blank {
+  border-style: dashed;
+}
+
+.template-card h3 {
+  margin: 0 0 0.5rem 0;
+  font-size: 1.125rem;
+  color: var(--text-primary);
+}
+
+.template-card p {
+  margin: 0 0 1rem 0;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.stage-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin-bottom: 1rem;
+}
+
+.stage-preview-item {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  padding: 0.25rem 0.5rem;
+  background: var(--bg-secondary);
+  border-radius: 4px;
+}
+
+.workflow-config .config-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+}
+
+.workflow-config .config-header h2 {
+  margin: 0;
+}
+
+.stages-config {
+  margin-top: 1.5rem;
+}
+
+.stages-config .stages-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.stages-config .stages-header h3 {
+  margin: 0;
+}
+
+.empty-states {
+  padding: 2rem;
+  text-align: center;
+  background: var(--bg-secondary);
+  border-radius: 8px;
+  color: var(--text-secondary);
+}
+
+.stage-config-card {
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  margin-bottom: 1rem;
+  background: var(--bg-primary);
+  overflow: hidden;
+}
+
+.stage-config-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.stage-order {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--primary-color);
+  color: white;
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+
+.stage-type-badge {
+  flex: 1;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.stage-actions {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.btn-icon {
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-primary);
+  border-radius: 4px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.8rem;
+  transition: all 0.2s ease;
+}
+
+.btn-icon:hover:not(:disabled) {
+  background: var(--bg-hover);
+}
+
+.btn-icon:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.btn-icon.delete:hover {
+  background: var(--danger-bg);
+  border-color: var(--danger-color);
+  color: var(--danger-color);
+}
+
+.stage-config-body {
+  padding: 1rem;
+}
+
+.form-row {
+  display: flex;
+  gap: 1rem;
+  align-items: end;
+}
+
+.flex-1 {
+  flex: 1;
+}
+
+.config-actions {
+  margin-top: 2rem;
+  display: flex;
+  gap: 1rem;
+  justify-content: flex-end;
+}
+
+/* Workflow Detail Timeline */
+.workflow-timeline {
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.timeline-item {
+  position: 1px
+  position: relative;
+  padding-left: 60px;
+  padding-bottom: 2rem;
+  border-left: 2px solid var(--border-color);
+  margin-left: 20px;
+}
+
+.timeline-item:last-child {
+  border-left: none;
+  padding-bottom: 0;
+}
+
+.timeline-item.completed {
+  border-left-color: var(--success-color);
+}
+
+.timeline-item.in-progress {
+  border-left-color: var(--primary-color);
+}
+
+.timeline-marker {
+  position: absolute;
+  left: -20px;
+  top: 0;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--bg-primary);
+  border: 2px solid var(--border-color);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.timeline-item.completed .timeline-marker {
+  border-color: var(--success-color);
+  background: var(--success-color);
+}
+
+.timeline-item.in-progress .timeline-marker {
+  border-color: var(--primary-color);
+  background: var(--primary-color);
+}
+
+.marker-icon {
+  font-size: 1.25rem;
+}
+
+.timeline-content {
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 1rem;
+  background: var(--bg-primary);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.timeline-content:hover {
+  border-color: var(--primary-color);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.timeline-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+
+.timeline-header h3 {
+  margin: 0;
+  font-size: 1.125rem;
+  color: var(--text-primary);
+}
+
+.stage-type {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+}
+
+.timeline-footer {
+  display: \;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--border-color);
+}
+
+.stage-info {
+  display: flex;
+  gap: 0.5rem;
+}
+
+/* Workflow Stage Editor */
+.stage-editor {
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+.editor-toolbar {
+  display: \;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem 1rem;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-bottom: 0;
+  border-radius: 6px 6px 0 0;
+}
+
+.toolbar-title {
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.content-editor {
+  width: 100%;
+  min-height: 500px;
+  padding: 1rem;
+  border: 1px solid var(--border-color);
+  border-radius: 0 0 6px 6px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: 'Monaco', 'Menlo', monospace;
+  font-size: 0.9rem;
+  line-height: 1.6;
+  resize: vertical;
+}
+
+.content-editor:focus {
+  outline: none;
+  border-color: var(--primary-color);
+}
+
+.stage-actions {
+  max-width: 900px;
+  margin: 1.5rem auto 0 auto;
+  display: flex;
+  gap: 1rem;
+  justify-content: flex-end;
+}
+
+.status-badge {
+  display: inline-block;
+  padding: 0.25rem 0.75rem;
+  border-radius: 12px;
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+
+.status-badge.completed, .status-badge.done {
+  background: var(--success-bg);
+  color: var(--success-text);
+}
+
+.status-badge.in_progress, .status-badge.in-progress {
+  background: var(--primary-bg);
+  color: var(--primary-text);
+}
+
+.status-badge.pending {
+  background: var(--warning-bg);
+  color: var(--warning-text);
+}
+
+.status-badge.small {
+  font-size: 0.75rem;
+}
+
+.info-box {
+  background: var(--info-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 1rem;
+}
+
+.info-box.warning {
+  background: var(--warning-bg);
+  border-color: var(--warning-border);
+}
+
+.info-box h4 {
+  margin: 0 0 0.5rem 0;
+  color: var(--text-primary);
+}
+
+.info-box p {
+  margin: 0;
+  color: var(--text-secondary);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .templates-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .form-row {
+    flex-direction: column;
+  }
+
+  .stage-actions {
+    flex-direction: column;
+  }
+
+  .stage-actions button {
+    width: 100%;
+  }
+
+  .config-actions {
+    flex-direction: column;
+  }
+
+  .config-actions button {
+    width: 100%;
+  }
+
+  .timeline-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
+  }
+}

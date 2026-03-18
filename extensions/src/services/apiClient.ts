@@ -2,7 +2,7 @@ import axios, { AxiosInstance } from 'axios';
 import * as vscode from 'vscode';
 import { logger } from '../utils/logger';
 
-interface ApiResponse<T = unknown> {
+export interface ApiResponse<T = unknown> {
   success: boolean;
   data?: T;
   error?: string;
@@ -12,8 +12,10 @@ interface ApiResponse<T = unknown> {
 export class ApiClient {
   private client: AxiosInstance;
   private authToken: string | undefined;
+  private context: vscode.ExtensionContext;
 
-  constructor() {
+  constructor(context: vscode.ExtensionContext) {
+    this.context = context;
     // Get backend URL from configuration
     const config = vscode.workspace.getConfiguration('codematrix');
     const backendUrl = config.get<string>('backendUrl', 'http://localhost:3001');
@@ -52,10 +54,11 @@ export class ApiClient {
 
   private async loadSavedToken(): Promise<void> {
     try {
-      // Try to get token from global state
-      const token = await this.getStoredToken();
+      // Get token from secrets
+      const token = await this.context.secrets.get('authToken');
       if (token) {
         this.authToken = token;
+        logger.info('Loaded saved auth token');
       }
     } catch (error) {
       const errMsg = error instanceof Error ? error.message : 'Unknown error';
@@ -63,14 +66,38 @@ export class ApiClient {
     }
   }
 
-  private async getStoredToken(): Promise<string | undefined> {
-    // This would need to be implemented based on how we store the token
-    // For now, return undefined
-    return undefined;
+  async saveAuthToken(token: string): Promise<void> {
+    try {
+      await this.context.secrets.store('authToken', token);
+      this.authToken = token;
+      logger.info('Auth token saved');
+    } catch (error) {
+      const errMsg = error instanceof Error ? error.message : 'Unknown error';
+      logger.error('Failed to save auth token', { error: errMsg });
+    }
+  }
+
+  async clearAuthToken(): Promise<void> {
+    try {
+      await this.context.secrets.delete('authToken');
+      this.authToken = undefined;
+      logger.info('Auth token cleared');
+    } catch (error) {
+      const errMsg = error instanceof Error ? error.message : 'Unknown error';
+      logger.error('Failed to clear auth token', { error: errMsg });
+    }
   }
 
   setAuthToken(token: string): void {
     this.authToken = token;
+  }
+
+  getAuthToken(): string | undefined {
+    return this.authToken;
+  }
+
+  isAuthenticated(): boolean {
+    return !!this.authToken;
   }
 
   // Auth endpoints
