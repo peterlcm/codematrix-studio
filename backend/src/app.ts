@@ -30,7 +30,7 @@ export function createApp() {
 
   // Middleware
   app.use(cors({
-    origin: process.env.NODE_ENV === 'production' ? false : ['http://localhost:5173', 'vscode-webview://'],
+    origin: process.env.NODE_ENV === 'production' ? false : true,
     credentials: true,
   }));
   app.use(express.json({ limit: '10mb' }));

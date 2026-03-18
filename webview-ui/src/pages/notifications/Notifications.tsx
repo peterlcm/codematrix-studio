@@ -15,7 +15,7 @@ interface Notification {
   actionUrl?: string;
 }
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+const API_BASE_URL = import.meta.env.VITE_API_URL || `${window.location.protocol}//${window.location.hostname}:3001`;
 
 const TYPE_LABELS: Record<string, string> = {
   WORKFLOW_UPDATE: 'Workflow',

@@ -45,7 +45,7 @@ interface DashboardData {
   team: TeamStats;
 }
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+const API_BASE_URL = import.meta.env.VITE_API_URL || `${window.location.protocol}//${window.location.hostname}:3001`;
 
 export default function Dashboard() {
   const [data, setData] = useState<DashboardData | null>(null);
