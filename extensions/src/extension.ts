@@ -1,11 +1,13 @@
 import * as vscode from 'vscode';
 import { WebviewManager } from './webview/WebviewManager';
+import { MainPanel } from './webview/MainPanel';
 import { WorkflowSidebarProvider } from './sidebar/WorkflowSidebarProvider';
 import { ApiClient } from './services/apiClient';
 import { logger } from './utils/logger';
 
 // Global references to prevent garbage collection
 let webviewManager: WebviewManager;
+let mainPanel: MainPanel;
 let sidebarProvider: WorkflowSidebarProvider;
 let apiClient: ApiClient;
 
@@ -13,10 +15,13 @@ export function activate(context: vscode.ExtensionContext) {
   logger.info('CodeMatrix Studio extension activating...');
 
   // Initialize API client
-  apiClient = new ApiClient();
+  apiClient = new ApiClient(context);
 
   // Initialize webview manager
   webviewManager = new WebviewManager(context);
+
+  // Initialize main panel (for login/project UI)
+  mainPanel = new MainPanel(context, apiClient, webviewManager);
 
   // Initialize sidebar provider
   sidebarProvider = new WorkflowSidebarProvider(context, apiClient);
@@ -32,6 +37,18 @@ export function activate(context: vscode.ExtensionContext) {
 }
 
 function registerCommands(context: vscode.ExtensionContext) {
+  // Open main panel (login, projects, etc.)
+  context.subscriptions.push(
+    vscode.commands.registerCommand('codematrix.openMain', async () => {
+      try {
+        await mainPanel.open();
+      } catch (error) {
+        logger.error('Failed to open main panel', error);
+        vscode.window.showErrorMessage('Failed to open CodeMatrix Studio');
+      }
+    })
+  );
+
   // Initialize new project
   context.subscriptions.push(
     vscode.commands.registerCommand('codematrix.initProject', async () => {

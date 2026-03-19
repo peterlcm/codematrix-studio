@@ -17,10 +17,13 @@
       "Bash(curl:*)",
       "Bash(docker:*)",
       "Bash(ls:*)",
-      "Bash(pg_isready -h localhost -p 5432 -U codematrix 2>&1 && echo \"PostgreSQL: OK\")",
+      "Bash(pg_isready:*)",
       "Bash(pkill:*)",
       "Bash(fuser:*)",
-      "Bash(git init:*1)"
+      "Bash(git init:*)",
+      "Bash(pnpm --version)",
+      "Bash(pnpm:*)",
+      "Bash(npm run:*)"
     ]
   }
 }

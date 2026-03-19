@@ -21,20 +21,32 @@ export default function App() {
   const [showCollaboration, setShowCollaboration] = useState(false);
   const [backendUrl, setBackendUrlState] = useState('http://localhost:3001');
   const [projectId, setProjectId] = useState<string | null>(null);
+  const [debugInfo, setDebugInfo] = useState<string>('');
+
+  // Log initial state
+  const initLog = `[Webview] App initialized, default backendUrl: ${backendUrl}`;
+  console.log(initLog);
+  setDebugInfo(prev => prev + initLog + '\n');
 
   useEffect(() => {
     // Get VS Code API
     const vscode = window.acquireVsCodeApi();
+    console.log('[Webview] Got VSCode API');
+    setDebugInfo(prev => prev + '[Webview] Got VSCode API\n');
 
     // Listen for messages from extension
     const handleMessage = (event: MessageEvent) => {
       const message = event.data as { type: string; payload?: unknown };
-
-      console.log('[Webview] Received message:', message.type);
+      const msgLog = `[Webview] Received message: ${message.type} payload: ${JSON.stringify(message.payload)}`;
+      console.log(msgLog);
+      setDebugInfo(prev => prev + msgLog + '\n');
 
       switch (message.type) {
         case 'init':
           const initPayload = message.payload as { projectId: string; backendUrl: string };
+          const initLog2 = `[Webview] init: projectId=${initPayload.projectId}, backendUrl=${initPayload.backendUrl}`;
+          console.log(initLog2);
+          setDebugInfo(prev => prev + initLog2 + '\n');
           setProjectId(initPayload.projectId);
           setBackendUrlState(initPayload.backendUrl);
           setBackendUrl(initPayload.backendUrl);
@@ -49,8 +61,8 @@ export default function App() {
         case 'auth:status':
           const payload = message.payload as { authenticated: boolean; user?: User };
           useWorkflowStore.getState().setAuthStatus(
-            payload.authenticated,
-            payload.user ? { user: payload.user } : undefined
+            (message.payload as { authenticated: boolean }).authenticated,
+            { user: (message.payload as { user?: User }).user! }
           );
           break;
         case 'error':
@@ -77,6 +89,7 @@ export default function App() {
         <div className="text-center">
           <div className="spinner mx-auto mb-4"></div>
           <p className="text-vscode-foreground">Loading workflow...</p>
+          <pre className="text-left text-xs bg-vscode-editorWidget-background p-2 mt-4 max-w-lg overflow-auto">{debugInfo}</pre>
         </div>
       </div>
     );
@@ -88,6 +101,7 @@ export default function App() {
         <div className="text-center p-8">
           <h2 className="text-xl text-vscode-errorForeground mb-4">Error</h2>
           <p className="text-vscode-foreground mb-4">{error}</p>
+          <pre className="text-left text-xs bg-vscode-editorWidget-background p-2 mb-4 max-w-lg overflow-auto">{debugInfo}</pre>
           {projectId && (
             <button
               onClick={() => loadWorkflow(projectId)}

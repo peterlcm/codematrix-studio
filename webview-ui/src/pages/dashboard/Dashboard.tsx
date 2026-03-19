@@ -53,6 +53,14 @@ export default function Dashboard() {
   const [error, setError] = useState('');
   const navigate = useNavigate();
 
+  // Restore token from localStorage on mount
+  useEffect(() => {
+    const token = localStorage.getItem('codematrix-token');
+    if (token) {
+      axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+    }
+  }, []);
+
   const loadDashboard = async () => {
     try {
       const response = await axios.get(`${API_BASE_URL}/api/v1/analytics/dashboard`);

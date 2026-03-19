@@ -27,11 +27,19 @@ export default function ProjectList() {
   const [showArchived, setShowArchived] = useState(false);
   const navigate = useNavigate();
 
+  // Restore token from localStorage on mount
+  useEffect(() => {
+    const token = localStorage.getItem('codematrix-token');
+    if (token) {
+      axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+    }
+  }, []);
+
   const loadProjects = async () => {
     try {
       const response = await axios.get(`${API_BASE_URL}/api/v1/projects`);
       if (response.data.success) {
-        setProjects(response.data);
+        setProjects(response.data.data);
       } else {
         setError(response.data.error || 'Failed to load projects');
       }

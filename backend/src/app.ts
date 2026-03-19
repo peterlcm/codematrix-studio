@@ -7,6 +7,7 @@ import { workflowRoutes } from './api/v1/workflow.routes';
 import { userRoutes } from './api/v1/user.routes';
 import { aiRoutes } from './api/v1/ai.routes';
 import { inviteRoutes } from './api/v1/invite.routes';
+import { analyticsRoutes } from './api/v1/analytics.routes';
 import { pluginRoutes, setPluginLoader } from './extensions/plugin.routes';
 import { analyticsRoutes } from './api/v1/analytics.routes';
 import { PluginLoader } from './extensions/PluginLoader';
@@ -54,6 +55,7 @@ export function createApp() {
   app.use('/api/v1/users', userRoutes);
   app.use('/api/v1/ai', aiRoutes);
   app.use('/api/v1/invite', inviteRoutes);
+  app.use('/api/v1/analytics', analyticsRoutes);
   app.use('/api/v1/plugins', pluginRoutes);
   app.use('/api/v1/analytics', analyticsRoutes);
 

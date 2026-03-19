@@ -12,13 +12,18 @@
     "AI"
   ],
   "activationEvents": [
+    "onCommand:codematrix.openMain",
     "onCommand:codematrix.initProject",
-    "onCommand:codematrix.openWorkspace",
+    "onCommand:codematrix.openWorkflow",
     "onView:codematrix.workflowSidebar"
   ],
   "main": "./dist/extension.js",
   "contributes": {
     "commands": [
+      {
+        "command": "codematrix.openMain",
+        "title": "CodeMatrix: Open Studio"
+      },
       {
         "command": "codematrix.initProject",
         "title": "CodeMatrix: Initialize New Project"
@@ -67,6 +72,13 @@
       ]
     }
   },
+  "keybindings": [
+    {
+      "command": "codematrix.openMain",
+      "key": "ctrl+shift+c",
+      "mac": "cmd+shift+c"
+    }
+  ],
   "scripts": {
     "build": "esbuild ./src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --format=cjs --platform=node",
     "dev": "npm run build -- --sourcemap --watch=forever",
@@ -74,13 +86,13 @@
     "lint": "eslint src --ext ts"
   },
   "dependencies": {
-    "@types/ws": "^8.5.10",
     "axios": "^1.6.2",
     "socket.io-client": "^4.7.2",
     "vscode-languageclient": "^9.0.1"
   },
   "devDependencies": {
     "@types/vscode": "^1.85.0",
+    "@types/ws": "^8.5.10",
     "@typescript-eslint/eslint-plugin": "^6.13.1",
     "@typescript-eslint/parser": "^6.13.1",
     "esbuild": "^0.19.8",

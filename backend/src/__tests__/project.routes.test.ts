@@ -83,10 +83,12 @@ describe('Project Routes', () => {
       (prisma.project.findMany as jest.Mock).mockResolvedValue(mockProjects);
 
       // Simulate route handler
-      const handler = projectRoutes.stack.find((r: any) => r.route?.path === '/' && r.route?.methods.get)?.route?.stack[0]?.handle;
+      const route = projectRoutes.stack.find((r: any) => r.route?.path === '/' && r.route?.methods.get);
+      const handler = route?.route?.stack[1]?.handle;
 
       if (handler) {
-        await handler(mockRequest as AuthRequest, mockResponse as Response);
+        const next = jest.fn();
+        await handler(mockRequest as AuthRequest, mockResponse as Response, next);
       }
 
       expect(prisma.project.findMany).toHaveBeenCalled();

@@ -13,6 +13,8 @@ export class ApiClient {
   private client: AxiosInstance;
   private authToken: string | undefined;
   private context: vscode.ExtensionContext;
+  private tokenLoaded: boolean = false;
+  private tokenLoadPromise: Promise<void>;
 
   constructor(context: vscode.ExtensionContext) {
     this.context = context;
@@ -48,8 +50,14 @@ export class ApiClient {
       }
     );
 
-    // Try to load saved token
-    this.loadSavedToken();
+    // Try to load saved token and track when complete
+    this.tokenLoadPromise = this.loadSavedToken();
+  }
+
+  // Wait for token to be loaded from secrets
+  async waitForTokenLoad(): Promise<void> {
+    await this.tokenLoadPromise;
+    this.tokenLoaded = true;
   }
 
   private async loadSavedToken(): Promise<void> {
@@ -60,9 +68,11 @@ export class ApiClient {
         this.authToken = token;
         logger.info('Loaded saved auth token');
       }
+      this.tokenLoaded = true;
     } catch (error) {
       const errMsg = error instanceof Error ? error.message : 'Unknown error';
       logger.error('Failed to load saved token', { error: errMsg });
+      this.tokenLoaded = true;
     }
   }
 
@@ -92,8 +102,18 @@ export class ApiClient {
     this.authToken = token;
   }
 
+  getToken(): string | undefined {
+    return this.authToken;
+  }
+
   getAuthToken(): string | undefined {
     return this.authToken;
+  }
+
+  async ensureTokenLoaded(): Promise<void> {
+    if (!this.tokenLoaded) {
+      await this.tokenLoadPromise;
+    }
   }
 
   isAuthenticated(): boolean {

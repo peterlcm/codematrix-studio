@@ -112,8 +112,17 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
     set({ isLoading: true, error: null });
 
     try {
-      const { backendUrl } = get();
-      const token = localStorage.getItem('authToken');
+      let { backendUrl } = get();
+      // Use default if not set
+      if (!backendUrl) {
+        backendUrl = 'http://localhost:3001';
+        set({ backendUrl });
+      }
+      const token = localStorage.getItem('codematrix-token');
+
+      console.log('[WorkflowStore] Loading workflow for project:', projectId);
+      console.log('[WorkflowStore] Backend URL:', backendUrl);
+      console.log('[WorkflowStore] Token:', token ? 'present' : 'missing');
 
       const response = await fetch(`${backendUrl}/api/v1/workflows/project/${projectId}`, {
         headers: {
@@ -122,8 +131,13 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
         },
       });
 
+      console.log('[WorkflowStore] Response status:', response.status);
+      console.log('[WorkflowStore] Response statusText:', response.statusText);
+
       if (!response.ok) {
-        throw new Error(`Failed to load workflow: ${response.statusText}`);
+        const errorText = await response.text();
+        console.error('[WorkflowStore] Error response:', errorText);
+        throw new Error(`Failed to load workflow: ${response.statusText} - ${errorText}`);
       }
 
       const result = await response.json();

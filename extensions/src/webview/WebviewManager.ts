@@ -21,7 +21,7 @@ export class WebviewManager implements MessageHandler {
 
     this.messageBus.on('authenticated', async (data) => {
       // Handle auth responses
-      logger.info({ data }, 'Authentication response received');
+      logger.info('Authentication response received', { data });
     });
   }
 
@@ -91,32 +91,70 @@ export class WebviewManager implements MessageHandler {
     const html = this.getWebviewHtml(backendUrl, projectId);
     this.panel.webview.html = html;
 
-    // Send initial project data
-    this.panel.webview.postMessage({
-      type: 'init',
-      payload: {
-        projectId,
-        backendUrl,
-      },
-    });
+    // Send initial project data after a short delay to ensure webview is ready
+    setTimeout(() => {
+      this.panel?.webview.postMessage({
+        type: 'init',
+        payload: {
+          projectId,
+          backendUrl,
+        },
+      });
+      logger.info('Sent init message to webview', { projectId, backendUrl });
+    }, 500);
   }
 
   private getWebviewHtml(backendUrl: string, projectId: string): string {
-    // Load the built index.html from webview-ui
-    const builtIndexPath = path.join(this.context.extensionPath, '..', 'webview-ui', 'dist', 'index.html');
+    const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || process.cwd();
+    const possiblePaths = [
+      path.join(workspaceRoot, 'webview-ui', 'dist', 'index.html'),
+      path.join(workspaceRoot, '..', 'webview-ui', 'dist', 'index.html'),
+      path.join(this.context.extensionPath, '..', 'webview-ui', 'dist', 'index.html'),
+      path.join(this.context.extensionPath, '..', '..', 'webview-ui', 'dist', 'index.html'),
+    ];
 
-    try {
-      let html = fs.readFileSync(builtIndexPath, 'utf8');
+    let html = '';
 
-      // Update CSP to allow VS Code webview
-      const csp = `default-src 'self' https://*.vscode-cdn.net 'unsafe-inline' 'unsafe-eval'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; connect-src 'self' ${backendUrl} ws://localhost:* http://localhost:* wss://localhost:*; img-src 'self' data: https:; font-src 'self' data:;`;
-      html = html.replace(
-        /<meta http-equiv="Content-Security-Policy"[^>]*>/,
-        `<meta http-equiv="Content-Security-Policy" content="${csp}">`
-      );
+    for (const builtIndexPath of possiblePaths) {
+      try {
+        if (fs.existsSync(builtIndexPath)) {
+          html = fs.readFileSync(builtIndexPath, 'utf8');
+          logger.info('Found webview index.html', { path: builtIndexPath });
+          break;
+        }
+      } catch (e) {
+        // Continue to next path
+      }
+    }
+
+    if (html) {
+      // Convert relative asset paths to VS Code webview URIs
+      const webview = this.panel?.webview;
+      if (webview) {
+        const assetsUri = vscode.Uri.joinPath(
+          vscode.Uri.file(path.join(this.context.extensionPath, '..', 'webview-ui', 'dist')),
+          'assets'
+        );
+        const assetsPath = webview.asWebviewUri(assetsUri).toString();
+        html = html.replace(/src="\.\/assets\//g, `src="${assetsPath}/`);
+        html = html.replace(/href="\.\/assets\//g, `href="${assetsPath}/`);
+      }
+
+      // Update CSP to allow VS Code webview - use backendUrl directly
+      const csp = `default-src 'self' https://*.vscode-cdn.net 'unsafe-inline' 'unsafe-eval'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.vscode-cdn.net; style-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.vscode-cdn.net; connect-src 'self' ${backendUrl} ws://localhost:* http://localhost:* wss://localhost:* https://*.anthropic.com; img-src 'self' data: https:; font-src 'self' data:;`;
+
+      // Remove old CSP meta and add new one
+      html = html.replace(/<meta http-equiv="Content-Security-Policy"[^>]*>/, '');
+
+      // Insert new CSP right after <head>
+      html = html.replace('<head>', `<head>\n    <meta http-equiv="Content-Security-Policy" content="${csp}">`);
+
+      logger.info('Updated CSP for webview', { backendUrl });
 
       return html;
-    } catch (error) {
+    } else {
+      // For debugging, show all paths tried
+      const pathsList = possiblePaths.join('<br/> - ');
       // If built index.html not found, show instructions
       return `<!DOCTYPE html>
 <html>
@@ -158,6 +196,9 @@ export class WebviewManager implements MessageHandler {
     <p>Please build the webview UI before opening:</p>
     <pre style="text-align: left; background: var(--vscode-editorWidget-background); padding: 10px; border-radius: 4px;">cd webview-ui && pnpm install && pnpm build</pre>
     <p>After building, close this panel and reopen the workflow.</p>
+    <hr style="margin: 20px 0; border-color: var(--vscode-editorWidget-background);">
+    <p style="font-size: 0.8em;">Debug - Tried paths:</p>
+    <pre style="font-size: 0.6em; text-align: left; word-break: break-all;"> - ${pathsList}</pre>
   </div>
 </body>
 </html>`;
@@ -202,6 +243,7 @@ export class WebviewManager implements MessageHandler {
   </div>
   <button onclick="saveSettings()">Save Settings</button>
   <script>
+    const vscode = acquireVsCodeApi();
     function saveSettings() {
       const backendUrl = document.getElementById('backendUrl').value;
       const apiKey = document.getElementById('apiKey').value;
@@ -221,7 +263,7 @@ export class WebviewManager implements MessageHandler {
   }
 
   async handleMessage(message: { type: string; payload?: unknown }): Promise<void> {
-    logger.info({ messageType: message.type }, 'Received message from webview');
+    logger.info('Received message from webview', { messageType: message.type });
 
     switch (message.type) {
       case 'ready':
@@ -235,7 +277,7 @@ export class WebviewManager implements MessageHandler {
         }
         break;
       default:
-        logger.warn({ messageType: message.type }, 'Unknown message type from webview');
+        logger.warn('Unknown message type from webview', { messageType: message.type });
     }
   }
 

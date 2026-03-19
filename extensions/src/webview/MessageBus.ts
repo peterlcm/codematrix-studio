@@ -37,7 +37,7 @@ export class MessageBus {
   }
 
   async handleMessage(message: Message): Promise<void> {
-    logger.info({ messageType: message.type }, 'MessageBus handling message');
+    logger.info('MessageBus handling message', { messageType: message.type });
 
     // Call registered callbacks for this message type
     const typeHandlers = this.handlers.get(message.type);
@@ -46,7 +46,7 @@ export class MessageBus {
         try {
           await callback(message.payload);
         } catch (error) {
-          logger.error({ error, messageType: message.type }, 'Message handler error');
+          logger.error('Message handler error', { error: String(error), messageType: message.type });
         }
       }
     }
@@ -56,7 +56,7 @@ export class MessageBus {
       try {
         await this.messageHandler.handleMessage(message);
       } catch (error) {
-        logger.error({ error, messageType: message.type }, 'Message handler error');
+        logger.error('Message handler error', { error: String(error), messageType: message.type });
       }
     }
   }
@@ -64,6 +64,6 @@ export class MessageBus {
   emit(type: string, payload?: unknown): void {
     // This is called by the extension to send messages to webview
     // The actual sending is done via the WebviewManager
-    logger.debug({ messageType: type }, 'MessageBus emitting message');
+    logger.debug('MessageBus emitting message', { messageType: type });
   }
 }

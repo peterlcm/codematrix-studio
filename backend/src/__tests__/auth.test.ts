@@ -99,6 +99,10 @@ describe('Auth Middleware', () => {
       const expiredDate = new Date();
       expiredDate.setDate(expiredDate.getDate() - 1);
 
+      // Create a real valid token for testing
+      const token = jwt.sign({ userId: 'user-1' }, 'test-secret');
+      mockRequest.headers.authorization = `Bearer ${token}`;
+
       (prisma.session.findUnique as jest.Mock).mockResolvedValue({
         expiresAt: expiredDate,
         user: { id: 'user-1', email: 'test@test.com', name: 'Test' },
@@ -115,8 +119,10 @@ describe('Auth Middleware', () => {
     });
 
     it('should call next() and set user if token is valid', async () => {
+      // Create a real valid token for testing
+      const token = jwt.sign({ userId: 'user-1' }, 'test-secret');
       mockRequest.headers = {
-        authorization: 'Bearer valid-token',
+        authorization: `Bearer ${token}`,
       };
 
       const futureDate = new Date();

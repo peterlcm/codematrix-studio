@@ -17,10 +17,17 @@ export class WorkflowSidebarProvider implements vscode.TreeDataProvider<Workflow
   private apiClient: ApiClient;
   private projects: Array<{ id: string; name: string }> = [];
   private selectedProjectId: string | undefined;
+  private mainPanelCommand: vscode.Command | undefined;
 
   constructor(context: vscode.ExtensionContext, apiClient: ApiClient) {
     this.context = context;
     this.apiClient = apiClient;
+
+    // Create command to open main panel
+    this.mainPanelCommand = {
+      command: 'codematrix.openMain',
+      title: 'Open CodeMatrix Studio',
+    };
 
     // Refresh on focus
     vscode.window.onDidChangeActiveTextEditor(() => {
@@ -37,9 +44,15 @@ export class WorkflowSidebarProvider implements vscode.TreeDataProvider<Workflow
   }
 
   async getChildren(element?: WorkflowTreeItem): Promise<WorkflowTreeItem[]> {
-    // If no element, show project list
+    // If no element, show header + project list
     if (!element) {
-      return this.getProjectItems();
+      // Add "Open Studio" button at the top
+      const openStudioItem = new vscode.TreeItem('🚀 Open CodeMatrix Studio');
+      openStudioItem.command = this.mainPanelCommand;
+      openStudioItem.collapsibleState = vscode.TreeItemCollapsibleState.None;
+
+      const projectItems = await this.getProjectItems();
+      return [openStudioItem, ...projectItems];
     }
 
     // If element is a project, show workflow stages
@@ -54,8 +67,8 @@ export class WorkflowSidebarProvider implements vscode.TreeDataProvider<Workflow
     try {
       const result = await this.apiClient.getProjects();
 
-      if (!result.success || !result.data) {
-        return [this.createItem('No Projects', 'Create a new project to get started', 'codematrix.initProject')];
+      if (!result.success || !result.data || result.data.length === 0) {
+        return [this.createItem('No Projects Yet', 'Click "Open CodeMatrix Studio" to start', 'codematrix.openMain')];
       }
 
       return result.data.map((project: { id: string; name: string }) =>
@@ -68,7 +81,7 @@ export class WorkflowSidebarProvider implements vscode.TreeDataProvider<Workflow
         )
       );
     } catch (error) {
-      logger.error({ error }, 'Failed to load projects');
+      logger.error('Failed to load projects', { error: String(error) });
       return [this.createItem('Error', 'Failed to load projects', undefined)];
     }
   }
@@ -97,7 +110,7 @@ export class WorkflowSidebarProvider implements vscode.TreeDataProvider<Workflow
         )
       );
     } catch (error) {
-      logger.error({ error }, 'Failed to load workflow');
+      logger.error('Failed to load workflow', { error: String(error) });
       return [this.createItem('Error', 'Failed to load workflow', undefined)];
     }
   }
@@ -162,8 +175,7 @@ export class WorkflowSidebarProvider implements vscode.TreeDataProvider<Workflow
     return statusTexts[status] || status;
   }
 
-  private getStatusIcon(status: string): vscode.Uri | undefined {
-    // Using built-in VS Code icons
+  private getStatusIcon(status: string): vscode.ThemeIcon {
     const iconMap: Record<string, string> = {
       'PENDING': 'circle-outline',
       'AI_PROCESSING': 'sync~spin',
@@ -174,6 +186,6 @@ export class WorkflowSidebarProvider implements vscode.TreeDataProvider<Workflow
     };
 
     const iconName = iconMap[status] || 'circle-outline';
-    return vscode.Uri.parse(`vscode://${iconName}`);
+    return new vscode.ThemeIcon(iconName);
   }
 }
