@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useWorkflowStore, Stage } from '../../store/workflowStore';
 import { StageContent } from './StageContent';
+import { FileTreePanel } from '../FileTree/FileTreePanel';
 
 const STAGE_ORDER = ['PRD_DESIGN', 'UI_UX_DESIGN', 'DEVELOPMENT', 'TESTING'];
 
@@ -176,7 +177,10 @@ export function WorkflowStage({ stage }: WorkflowStageProps) {
         )}
       </div>
 
-      {/* Footer */}
+      {!isEditing && !isGenerating && stage.status !== 'PENDING' && workflow && (
+        <FileTreePanel projectId={workflow.projectId} />
+      )}
+
       {!isEditing && !isGenerating && stage.status !== 'PENDING' && (
         <div className="flex items-center justify-between px-4 py-2 border-t border-vscode-editorWidget-background text-xs text-vscode-editorWidget-foreground">
           <div className="flex items-center gap-4">

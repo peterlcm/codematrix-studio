@@ -46,12 +46,27 @@ export interface Workflow {
   updatedAt: string;
 }
 
+export interface FileTreeNode {
+  name: string;
+  path: string;
+  type: 'file' | 'directory';
+  extension?: string;
+  children?: FileTreeNode[];
+}
+
+export interface GeneratedFile {
+  filepath: string;
+  language: string;
+}
+
 interface WorkflowState {
   workflow: Workflow | null;
   currentStage: Stage | null;
   isLoading: boolean;
   isGenerating: boolean;
   streamingContent: string;
+  generatedFiles: GeneratedFile[];
+  fileTree: FileTreeNode[];
   error: string | null;
   isAuthenticated: boolean;
   currentUser: User | null;
@@ -64,6 +79,8 @@ interface WorkflowState {
   loadWorkflow: (projectId: string) => Promise<void>;
   createWorkflow: (projectId: string, initialPrompt?: string) => Promise<void>;
   generateStage: (stageId: string, initialPrompt?: string) => Promise<void>;
+  fetchFileTree: (projectId: string) => Promise<void>;
+  fetchFileContent: (projectId: string, filePath: string) => Promise<string | null>;
   updateStageContent: (content: string) => Promise<void>;
   approveStage: (approved: boolean, feedback?: string) => Promise<void>;
   addComment: (content: string, threadId?: string) => Promise<void>;
@@ -80,6 +97,8 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
   isLoading: false,
   isGenerating: false,
   streamingContent: '',
+  generatedFiles: [],
+  fileTree: [],
   error: null,
   isAuthenticated: false,
   currentUser: null,
@@ -218,7 +237,7 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
   },
 
   generateStage: async (stageId, initialPrompt) => {
-    set({ isGenerating: true, streamingContent: '', error: null });
+    set({ isGenerating: true, streamingContent: '', generatedFiles: [], error: null });
 
     const { backendUrl, authToken: token, workflow } = get();
     if (!workflow) return;
@@ -272,6 +291,8 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
             if (data.type === 'chunk') {
               fullContent += data.content;
               set({ streamingContent: fullContent });
+            } else if (data.type === 'files') {
+              set({ generatedFiles: data.files || [] });
             } else if (data.type === 'error') {
               throw new Error(data.message);
             }
@@ -283,11 +304,45 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
       }
 
       await get().loadWorkflow(workflow.projectId);
+      await get().fetchFileTree(workflow.projectId);
       set({ isGenerating: false, streamingContent: '' });
     } catch (error) {
       set({ error: (error as Error).message, isGenerating: false, streamingContent: '' });
       await get().loadWorkflow(workflow.projectId);
     }
+  },
+
+  fetchFileTree: async (projectId) => {
+    const { backendUrl, authToken: token } = get();
+    try {
+      const response = await fetch(`${backendUrl}/api/v1/files/${projectId}/tree`, {
+        headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+      });
+      if (response.ok) {
+        const result = await response.json();
+        if (result.success) {
+          set({ fileTree: result.data });
+        }
+      }
+    } catch (error) {
+      console.error('Failed to fetch file tree:', error);
+    }
+  },
+
+  fetchFileContent: async (projectId, filePath) => {
+    const { backendUrl, authToken: token } = get();
+    try {
+      const response = await fetch(`${backendUrl}/api/v1/files/${projectId}/read/${filePath}`, {
+        headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+      });
+      if (response.ok) {
+        const result = await response.json();
+        return result.data?.content || null;
+      }
+    } catch (error) {
+      console.error('Failed to fetch file content:', error);
+    }
+    return null;
   },
 
   updateStageContent: async (content) => {

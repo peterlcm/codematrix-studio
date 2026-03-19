@@ -8,6 +8,7 @@ import { userRoutes } from './api/v1/user.routes';
 import { aiRoutes } from './api/v1/ai.routes';
 import { inviteRoutes } from './api/v1/invite.routes';
 import { analyticsRoutes } from './api/v1/analytics.routes';
+import { fileRoutes } from './api/v1/file.routes';
 import { pluginRoutes, setPluginLoader } from './extensions/plugin.routes';
 import { PluginLoader } from './extensions/PluginLoader';
 import { errorHandler } from './middleware/errorHandler';
@@ -57,6 +58,7 @@ export function createApp() {
   app.use('/api/v1/analytics', analyticsRoutes);
   app.use('/api/v1/plugins', pluginRoutes);
   app.use('/api/v1/analytics', analyticsRoutes);
+  app.use('/api/v1/files', fileRoutes);
 
   // Initialize plugin loader
   const pluginsDir = process.env.PLUGINS_DIR || './plugins';

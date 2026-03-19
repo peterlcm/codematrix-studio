@@ -12,6 +12,26 @@ interface AIConfig {
   temperature?: number;
 }
 
+const FILE_OUTPUT_INSTRUCTION = `
+
+【重要】输出格式要求：
+请将每个文件的内容用以下格式输出，每个文件一个代码块：
+
+\`\`\`语言:文件路径
+文件内容
+\`\`\`
+
+例如：
+\`\`\`html:index.html
+<!DOCTYPE html>...
+\`\`\`
+
+\`\`\`css:styles/main.css
+body { ... }
+\`\`\`
+
+每个代码块的第一行必须是 \`\`\`语言:文件路径 格式，文件路径使用相对路径。`;
+
 const PROMPT_TEMPLATES = {
   PRD: `你是一位资深产品经理，正在撰写一份详尽的产品需求文档（PRD）。
 
@@ -35,26 +55,45 @@ const PROMPT_TEMPLATES = {
 7. **技术约束** - 技术栈限制和集成需求
 8. **成功指标** - 如何衡量项目是否成功？
 
-请使用结构良好的 Markdown 格式，内容要具体且详尽。`,
-  UI_DESIGN: `你是一位资深 UI/UX 设计师，正在撰写详细的设计规范文档。
+请使用结构良好的 Markdown 格式，内容要具体且详尽。
+输出为一个文件，格式如下：
+\`\`\`markdown:PRD.md
+（PRD文档完整内容）
+\`\`\``,
+  UI_DESIGN: `你是一位资深 UI/UX 设计师和前端工程师。
 
 项目名称：{{projectName}}
 
 产品需求文档（参考）：
 {{prdContent}}
 
-基于以上 PRD，请用中文撰写一份全面的 UI/UX 设计规范，包含：
-1. **设计原则** - 核心设计理念
-2. **布局结构** - 页面层级、导航体系
-3. **组件库** - 可复用 UI 组件及其状态
-4. **视觉设计** - 配色方案、字体排版、间距规范
-5. **交互流程** - 用户流程和关键交互描述
-6. **线框图/原型** - 基于文本的页面布局描述
-7. **响应式设计** - 移动端、平板、桌面端的适配方案
-8. **无障碍设计** - WCAG 合规、键盘导航
-9. **动效规范** - 过渡动画和微交互
+基于以上 PRD，请直接生成**可在浏览器中打开预览的 HTML+CSS 界面原型**。
 
-请使用 Markdown 格式，分章节清晰列出。`,
+要求：
+1. 生成一个 index.html 作为主入口/首页原型
+2. 为每个主要页面生成独立的 HTML 文件（如 login.html、dashboard.html、detail.html 等）
+3. 生成一个 styles.css 作为统一样式表
+4. HTML 中使用中文标签和示例数据
+5. 样式要现代美观，使用 CSS Flexbox/Grid 布局
+6. 页面间通过链接相互跳转
+7. 每个页面要包含完整的页面结构（导航栏、主内容区、页脚等）
+8. 使用 CSS 变量定义主题色，方便后续调整
+
+${FILE_OUTPUT_INSTRUCTION}
+
+示例输出格式：
+\`\`\`html:index.html
+<!DOCTYPE html>
+<html lang="zh-CN">...
+\`\`\`
+
+\`\`\`css:styles.css
+:root { --primary: #4f46e5; }...
+\`\`\`
+
+\`\`\`html:pages/login.html
+<!DOCTYPE html>...
+\`\`\``,
   CODE: `你是一位资深全栈开发工程师，正在实现一个完整的项目。
 
 项目名称：{{projectName}}
@@ -65,28 +104,35 @@ const PROMPT_TEMPLATES = {
 UI/UX 设计规范：
 {{uiDesignContent}}
 
-请用中文注释，生成完整的全栈实现代码，包括：
+请生成完整的、可运行的全栈项目代码。每个源文件独立输出。
 
-**项目结构**
-- 文件和目录组织
+技术栈要求：
+- 前端：React 18 + TypeScript + Vite
+- 后端：Node.js + Express + TypeScript
+- 使用中文注释
 
-**前端**（React + TypeScript）
-- 主应用组件和路由
-- 关键组件及 Props 接口定义
-- 状态管理方案
-- API 服务层
+需要生成的文件包括但不限于：
+1. package.json（前端和后端各一个）
+2. 前端：App.tsx、路由配置、各页面组件、API 服务层、类型定义
+3. 后端：server.ts、路由文件、控制器、数据模型、中间件
+4. 共享类型定义
+5. 配置文件（tsconfig.json、vite.config.ts 等）
 
-**后端**（Node.js/Express + TypeScript）
-- API 路由和控制器
-- 数据模型和数据库 Schema
-- 业务逻辑服务
+${FILE_OUTPUT_INSTRUCTION}
 
-**共享部分**
-- TypeScript 类型/接口定义
-- 工具函数
+示例输出格式：
+\`\`\`json:frontend/package.json
+{ "name": "..." }
+\`\`\`
 
-提供完整、可运行的代码。复杂部分用中文注释说明。遵循最佳实践。`,
-  TESTS: `你是一位资深 QA 工程师，正在编写全面的测试方案。
+\`\`\`typescript:frontend/src/App.tsx
+import React from 'react';...
+\`\`\`
+
+\`\`\`typescript:backend/src/server.ts
+import express from 'express';...
+\`\`\``,
+  TESTS: `你是一位资深 QA 工程师，正在编写全面的测试方案和测试脚本。
 
 项目名称：{{projectName}}
 
@@ -99,19 +145,33 @@ UI/UX 设计：
 待测试代码：
 {{codeContent}}
 
-请用中文撰写并生成完整的测试套件，包括：
+请生成以下内容：
+1. 一份测试计划文档（test-plan.md），包含测试策略、测试范围、优先级
+2. 完整的单元测试脚本文件（使用 {{testFramework}}）
+3. API 集成测试脚本
+4. 端到端测试脚本
+5. 测试数据和 Mock 文件
+6. jest.config.ts 或测试配置文件
 
-1. **测试策略** - 测试方法和优先级
-2. **单元测试** - 组件和函数测试
-3. **集成测试** - API 和工作流测试
-4. **端到端测试** - 用户旅程测试
-5. **测试数据** - Mock 数据和 Fixtures
-6. **覆盖率目标** - 目标覆盖率百分比
+每个测试文件独立输出。使用中文注释说明测试意图。
 
-使用 {{testFramework}} 或最合适的测试框架。提供可运行的测试代码。`,
+${FILE_OUTPUT_INSTRUCTION}
+
+示例输出格式：
+\`\`\`markdown:test-plan.md
+# 测试计划...
+\`\`\`
+
+\`\`\`typescript:__tests__/components/App.test.tsx
+import { render } from '@testing-library/react';...
+\`\`\`
+
+\`\`\`typescript:__tests__/api/users.test.ts
+import request from 'supertest';...
+\`\`\``,
 };
 
-const SYSTEM_PROMPT = '你是一位专业的软件开发助手。请使用中文生成全面、详尽、实用的内容。所有文档和注释都使用中文。';
+const SYSTEM_PROMPT = '你是一位专业的软件开发助手。请使用中文生成全面、详尽、实用的内容。所有文档和注释都使用中文。请严格按照用户要求的文件输出格式（```语言:文件路径）来组织输出，确保每个文件都在独立的代码块中。';
 
 function loadConfig(): AIConfig {
   const provider = (process.env.AI_PROVIDER || 'anthropic') as AIProvider;

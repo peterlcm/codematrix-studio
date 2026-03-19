@@ -4,6 +4,7 @@ import { prisma } from '../../database/db';
 import { authMiddleware, AuthRequest } from '../../middleware/auth';
 import { WorkflowEngine } from '../../services/workflow/WorkflowEngine';
 import { AIGateway } from '../../services/ai/AIGateway';
+import { FileWriter } from '../../services/file/FileWriter';
 import { logger } from '../../utils/logger';
 
 const aiGateway = new AIGateway();
@@ -132,7 +133,13 @@ workflowRoutes.post('/', authMiddleware, async (req: AuthRequest, res: Response)
       });
     }
 
-    // Create workflow with initial stages
+    if (data.initialPrompt && !project.description) {
+      await prisma.project.update({
+        where: { id: data.projectId },
+        data: { description: data.initialPrompt },
+      });
+    }
+
     const workflow = await workflowEngine.createWorkflow({
       projectId: data.projectId,
       initialPrompt: data.initialPrompt,
@@ -479,22 +486,40 @@ workflowRoutes.post('/stage/:stageId/generate-stream', authMiddleware, async (re
       'X-Accel-Buffering': 'no',
     });
 
-    const allStages = stage.workflow.stages;
-    const prdStage = allStages.find((s: any) => s.stageType === 'PRD_DESIGN' && (s.approved || s.aiContent));
-    const uiStage = allStages.find((s: any) => s.stageType === 'UI_UX_DESIGN' && (s.approved || s.aiContent));
-    const codeStage = allStages.find((s: any) => s.stageType === 'DEVELOPMENT' && (s.approved || s.aiContent));
+    const allStages = stage.workflow.stages as any[];
+    const currentStageType = stage.stageType;
+
+    const getStageContent = (type: string): string => {
+      const s = allStages.find((st: any) => st.stageType === type && st.id !== stageId);
+      if (!s) return '';
+      return s.humanContent || s.aiContent || '';
+    };
+
+    const projectDescription = req.body.initialPrompt || project.description || '';
 
     const variables: Record<string, string | undefined> = {
       projectName: project.name,
-      projectDescription: req.body.initialPrompt,
-      initialPrompt: req.body.initialPrompt,
-      prdContent: prdStage ? (prdStage.humanContent || prdStage.aiContent || '') : '',
-      uiDesignContent: uiStage ? (uiStage.humanContent || uiStage.aiContent || '') : '',
-      codeContent: codeStage ? (codeStage.humanContent || codeStage.aiContent || '') : '',
+      projectDescription,
+      initialPrompt: projectDescription,
+      prdContent: getStageContent('PRD_DESIGN'),
+      uiDesignContent: getStageContent('UI_UX_DESIGN'),
+      codeContent: getStageContent('DEVELOPMENT'),
       testFramework: 'Jest + React Testing Library',
     };
 
-    const prompt = aiGateway.renderPrompt(stage.stageType, variables);
+    logger.info('AI generation context', {
+      stageType: currentStageType,
+      projectName: project.name,
+      hasProjectDescription: !!projectDescription,
+      hasPrdContent: !!variables.prdContent,
+      hasUiDesignContent: !!variables.uiDesignContent,
+      hasCodeContent: !!variables.codeContent,
+      prdContentLength: variables.prdContent?.length || 0,
+      uiDesignContentLength: variables.uiDesignContent?.length || 0,
+      codeContentLength: variables.codeContent?.length || 0,
+    });
+
+    const prompt = aiGateway.renderPrompt(currentStageType, variables);
     let fullContent = '';
 
     try {
@@ -508,8 +533,17 @@ workflowRoutes.post('/stage/:stageId/generate-stream', authMiddleware, async (re
         data: { aiContent: fullContent, status: 'READY_FOR_REVIEW' },
       });
 
+      let writtenFiles: { filepath: string; language: string }[] = [];
+      try {
+        const files = await FileWriter.writeFiles(project.id, currentStageType, fullContent);
+        writtenFiles = files.map(f => ({ filepath: f.filepath, language: f.language }));
+      } catch (fileError) {
+        logger.error('Failed to write files', { stageId, error: String(fileError) });
+      }
+
+      res.write(`data: ${JSON.stringify({ type: 'files', files: writtenFiles })}\n\n`);
       res.write(`data: ${JSON.stringify({ type: 'done' })}\n\n`);
-      logger.info('Streaming AI generation completed', { stageId, stageType: stage.stageType });
+      logger.info('Streaming AI generation completed', { stageId, stageType: stage.stageType, fileCount: writtenFiles.length });
     } catch (aiError) {
       await prisma.stage.update({
         where: { id: stageId },

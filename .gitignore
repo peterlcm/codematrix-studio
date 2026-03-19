@@ -54,6 +54,9 @@ coverage
 prisma/migrations/*
 !prisma/migrations/migration_lock.toml
 
+# AI generated project files
+backend/projects/
+
 # Temporary
 *.tmp
 *.temp
