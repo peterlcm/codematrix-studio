@@ -3,7 +3,6 @@ import { ApiClient } from '../services/apiClient';
 import { logger } from '../utils/logger';
 
 interface WorkflowTreeItem extends vscode.TreeItem {
-  id: string;
   stageType?: string;
   status?: string;
   projectId?: string;
@@ -26,7 +25,7 @@ export class WorkflowSidebarProvider implements vscode.TreeDataProvider<Workflow
     // Create command to open main panel
     this.mainPanelCommand = {
       command: 'codematrix.openMain',
-      title: 'Open CodeMatrix Studio',
+      title: '打开 CodeMatrix Studio',
     };
 
     // Refresh on focus
@@ -44,18 +43,26 @@ export class WorkflowSidebarProvider implements vscode.TreeDataProvider<Workflow
   }
 
   async getChildren(element?: WorkflowTreeItem): Promise<WorkflowTreeItem[]> {
-    // If no element, show header + project list
     if (!element) {
-      // Add "Open Studio" button at the top
-      const openStudioItem = new vscode.TreeItem('🚀 Open CodeMatrix Studio');
-      openStudioItem.command = this.mainPanelCommand;
-      openStudioItem.collapsibleState = vscode.TreeItemCollapsibleState.None;
+      const openStudioItem = this.createItem(
+        '🚀 打开 CodeMatrix Studio',
+        '',
+        'codematrix.openMain'
+      );
+
+      if (!this.apiClient.isAuthenticated()) {
+        const loginItem = this.createItem(
+          '$(sign-in) 请先登录',
+          '点击标题栏的登录按钮',
+          'codematrix.login'
+        );
+        return [openStudioItem, loginItem];
+      }
 
       const projectItems = await this.getProjectItems();
       return [openStudioItem, ...projectItems];
     }
 
-    // If element is a project, show workflow stages
     if (element.projectId) {
       return this.getStageItems(element.projectId);
     }
@@ -68,7 +75,7 @@ export class WorkflowSidebarProvider implements vscode.TreeDataProvider<Workflow
       const result = await this.apiClient.getProjects();
 
       if (!result.success || !result.data || result.data.length === 0) {
-        return [this.createItem('No Projects Yet', 'Click "Open CodeMatrix Studio" to start', 'codematrix.openMain')];
+        return [this.createItem('暂无项目', '点击「打开 CodeMatrix Studio」开始', 'codematrix.openMain')];
       }
 
       return result.data.map((project: { id: string; name: string }) =>
@@ -82,7 +89,7 @@ export class WorkflowSidebarProvider implements vscode.TreeDataProvider<Workflow
       );
     } catch (error) {
       logger.error('Failed to load projects', { error: String(error) });
-      return [this.createItem('Error', 'Failed to load projects', undefined)];
+      return [this.createItem('错误', '加载项目列表失败', undefined)];
     }
   }
 
@@ -91,10 +98,10 @@ export class WorkflowSidebarProvider implements vscode.TreeDataProvider<Workflow
       const result = await this.apiClient.getWorkflow(projectId);
 
       if (!result.success || !result.data) {
-        return [this.createItem('No Workflow', 'Start a workflow to see stages', undefined)];
+        return [this.createItem('暂无工作流', '启动工作流查看各阶段', undefined)];
       }
 
-      const workflow = result.data;
+      const workflow = result.data as any;
       const stages = workflow.stages || [];
 
       return stages.map((stage: { id: string; stageType: string; status: string; title: string; approved: boolean }) =>
@@ -111,7 +118,7 @@ export class WorkflowSidebarProvider implements vscode.TreeDataProvider<Workflow
       );
     } catch (error) {
       logger.error('Failed to load workflow', { error: String(error) });
-      return [this.createItem('Error', 'Failed to load workflow', undefined)];
+      return [this.createItem('错误', '加载工作流失败', undefined)];
     }
   }
 
@@ -162,15 +169,15 @@ export class WorkflowSidebarProvider implements vscode.TreeDataProvider<Workflow
   }
 
   private getStatusText(status: string, approved: boolean): string {
-    if (approved) return '✅ Approved';
+    if (approved) return '✅ 已确认';
 
     const statusTexts: Record<string, string> = {
-      'PENDING': '⏳ Pending AI processing',
-      'AI_PROCESSING': '🤖 AI is generating...',
-      'READY_FOR_REVIEW': '👀 Ready for review',
-      'REVISION_REQUESTED': '🔄 Revision requested',
-      'APPROVED': '✅ Approved',
-      'COMPLETED': '🎉 Completed',
+      'PENDING': '⏳ 待处理',
+      'AI_PROCESSING': '🤖 AI 生成中...',
+      'READY_FOR_REVIEW': '👀 待审核',
+      'REVISION_REQUESTED': '🔄 需要修改',
+      'APPROVED': '✅ 已确认',
+      'COMPLETED': '🎉 已完成',
     };
     return statusTexts[status] || status;
   }

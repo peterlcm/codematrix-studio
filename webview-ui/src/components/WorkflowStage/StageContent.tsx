@@ -9,7 +9,7 @@ interface StageContentProps {
 export function StageContent({ type, content }: StageContentProps) {
   const renderContent = useMemo(() => {
     if (!content) {
-      return <p className="text-vscode-editorWidget-foreground italic">No content generated yet.</p>;
+      return <p className="text-vscode-editorWidget-foreground italic">尚未生成内容。</p>;
     }
 
     // For code, use pre/code formatting

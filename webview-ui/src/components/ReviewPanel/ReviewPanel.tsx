@@ -23,9 +23,7 @@ export function ReviewPanel({ stage }: ReviewPanelProps) {
   };
 
   const handleRequestRevision = async () => {
-    if (!feedback.trim()) {
-      return; // Require feedback for revision requests
-    }
+    if (!feedback.trim()) return;
     setIsSubmitting(true);
     try {
       await approveStage(false, feedback);
@@ -36,13 +34,12 @@ export function ReviewPanel({ stage }: ReviewPanelProps) {
 
   return (
     <div className="p-4">
-      <h3 className="text-lg font-semibold mb-4">Review & Approval</h3>
+      <h3 className="text-lg font-semibold mb-4">审核与确认</h3>
 
-      {/* Diff View */}
       {stage.aiContent && stage.humanContent && stage.humanContent !== stage.aiContent && (
         <div className="mb-4">
           <h4 className="text-sm font-medium mb-2 text-vscode-editorWidget-foreground">
-            Changes Made
+            修改内容
           </h4>
           <div className="bg-vscode-editorWidget-background rounded p-3 text-sm">
             <DiffView oldText={stage.aiContent} newText={stage.humanContent} />
@@ -50,12 +47,11 @@ export function ReviewPanel({ stage }: ReviewPanelProps) {
         </div>
       )}
 
-      {/* Approval Status */}
       {stage.approved ? (
         <div className="bg-green-900/30 border border-green-700 rounded p-4 mb-4">
           <div className="flex items-center gap-2 text-green-400">
             <span>✓</span>
-            <span className="font-medium">Approved</span>
+            <span className="font-medium">已确认通过</span>
           </div>
           {stage.approvedAt && (
             <p className="text-sm text-green-400/70 mt-1">
@@ -66,52 +62,48 @@ export function ReviewPanel({ stage }: ReviewPanelProps) {
       ) : canApprove ? (
         <div className="bg-yellow-900/20 border border-yellow-700 rounded p-4 mb-4">
           <p className="text-sm text-yellow-400">
-            This stage is ready for your review. Approve to continue to the next stage, or request revisions.
+            本阶段成果已准备就绪，请审核后确认通过以进入下一环节，或请求修改。
           </p>
         </div>
       ) : null}
 
-      {/* Action Buttons */}
       {canApprove && (
         <div className="space-y-4">
-          {/* Feedback Input */}
           <div>
             <label className="block text-sm font-medium mb-2">
-              Feedback {canRequestRevision && <span className="text-vscode-errorForeground">*</span>}
+              反馈意见 {canRequestRevision && <span className="text-vscode-errorForeground">*</span>}
             </label>
             <textarea
               value={feedback}
               onChange={(e) => setFeedback(e.target.value)}
               placeholder={
                 canRequestRevision
-                  ? 'Describe what needs to be changed...'
-                  : 'Add optional feedback...'
+                  ? '请描述需要修改的内容...'
+                  : '添加反馈意见（可选）...'
               }
               className="w-full h-24 p-2 bg-vscode-input-background text-vscode-input-foreground border border-vscode-input-border rounded resize-none text-sm"
             />
           </div>
 
-          {/* Buttons */}
           <div className="flex gap-2">
             <button
               onClick={handleApprove}
               disabled={isSubmitting}
               className="flex-1 px-4 py-2 bg-green-700 hover:bg-green-600 text-white rounded font-medium disabled:opacity-50"
             >
-              {isSubmitting ? 'Approving...' : '✓ Approve'}
+              {isSubmitting ? '确认中...' : '✓ 确认通过'}
             </button>
             <button
               onClick={handleRequestRevision}
               disabled={isSubmitting || !feedback.trim()}
               className="flex-1 px-4 py-2 bg-vscode-button-background hover:bg-vscode-button-hoverBackground text-vscode-button-foreground rounded font-medium disabled:opacity-50"
             >
-              {isSubmitting ? 'Sending...' : '↩ Request Revision'}
+              {isSubmitting ? '提交中...' : '↩ 请求修改'}
             </button>
           </div>
         </div>
       )}
 
-      {/* Regenerate Button */}
       {canApprove && (
         <div className="mt-4 pt-4 border-t border-vscode-editorWidget-background">
           <button
@@ -119,28 +111,27 @@ export function ReviewPanel({ stage }: ReviewPanelProps) {
             disabled={isLoading}
             className="w-full px-4 py-2 bg-vscode-editorWidget-background text-vscode-foreground rounded hover:bg-vscode-list-hoverBackground text-sm"
           >
-            🔄 Regenerate with AI
+            🔄 重新让 AI 生成
           </button>
           <p className="text-xs text-vscode-editorWidget-foreground mt-2">
-            Use this to regenerate the content with a different approach or additional context.
+            使用此功能让 AI 用不同的方式重新生成本阶段内容。
           </p>
         </div>
       )}
 
-      {/* Stage Info */}
       <div className="mt-6 pt-4 border-t border-vscode-editorWidget-background">
-        <h4 className="text-sm font-medium mb-2">Stage Information</h4>
+        <h4 className="text-sm font-medium mb-2">阶段信息</h4>
         <dl className="text-sm space-y-1">
           <div className="flex justify-between">
-            <dt className="text-vscode-editorWidget-foreground">Type:</dt>
+            <dt className="text-vscode-editorWidget-foreground">类型：</dt>
             <dd>{stage.stageType}</dd>
           </div>
           <div className="flex justify-between">
-            <dt className="text-vscode-editorWidget-foreground">Status:</dt>
+            <dt className="text-vscode-editorWidget-foreground">状态：</dt>
             <dd>{stage.status}</dd>
           </div>
           <div className="flex justify-between">
-            <dt className="text-vscode-editorWidget-foreground">Version:</dt>
+            <dt className="text-vscode-editorWidget-foreground">版本：</dt>
             <dd>{stage.version}</dd>
           </div>
         </dl>
@@ -149,18 +140,15 @@ export function ReviewPanel({ stage }: ReviewPanelProps) {
   );
 }
 
-// Simple diff viewer component
 function DiffView({ oldText, newText }: { oldText: string; newText: string }) {
   const oldLines = oldText.split('\n');
   const newLines = newText.split('\n');
-
   const maxLines = Math.max(oldLines.length, newLines.length);
   const diffLines: JSX.Element[] = [];
 
   for (let i = 0; i < maxLines; i++) {
     const oldLine = oldLines[i];
     const newLine = newLines[i];
-
     if (oldLine === newLine) {
       diffLines.push(
         <div key={i} className="flex">

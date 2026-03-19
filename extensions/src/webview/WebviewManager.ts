@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
 import { MessageBus, MessageHandler } from './MessageBus';
+import { ApiClient } from '../services/apiClient';
 import { logger } from '../utils/logger';
 
 export class WebviewManager implements MessageHandler {
@@ -9,13 +10,14 @@ export class WebviewManager implements MessageHandler {
   private panel: vscode.WebviewPanel | undefined;
   private messageBus: MessageBus;
   private currentProjectId: string | undefined;
+  private apiClient: ApiClient | undefined;
 
   constructor(context: vscode.ExtensionContext) {
     this.context = context;
     this.messageBus = new MessageBus(this);
 
     // Register handler for messages from webview
-    this.messageBus.on('openProject', async (data) => {
+    this.messageBus.on('openProject', async (data: any) => {
       this.currentProjectId = data.projectId;
     });
 
@@ -28,10 +30,10 @@ export class WebviewManager implements MessageHandler {
   async openWorkflow(projectId: string): Promise<void> {
     this.currentProjectId = projectId;
 
-    // Create or show the webview panel
     if (this.panel) {
       this.panel.reveal(vscode.ViewColumn.One);
     } else {
+      const distPath = this.getWebviewDistPath();
       this.panel = vscode.window.createWebviewPanel(
         'codematrix.workflow',
         'CodeMatrix Workflow',
@@ -41,7 +43,7 @@ export class WebviewManager implements MessageHandler {
           retainContextWhenHidden: true,
           localResourceRoots: [
             vscode.Uri.file(path.join(this.context.extensionPath, 'media')),
-            vscode.Uri.file(path.join(this.context.extensionPath, '..', 'webview-ui', 'dist')),
+            ...(distPath ? [vscode.Uri.file(distPath)] : []),
           ],
         }
       );
@@ -55,8 +57,25 @@ export class WebviewManager implements MessageHandler {
       });
     }
 
-    // Load the webview content
     await this.loadWebviewContent(projectId);
+  }
+
+  private getWebviewDistPath(): string | undefined {
+    const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+    const candidates = [
+      workspaceRoot ? path.join(workspaceRoot, 'webview-ui', 'dist') : '',
+      path.join(this.context.extensionPath, '..', 'webview-ui', 'dist'),
+      path.join(this.context.extensionPath, '..', '..', 'webview-ui', 'dist'),
+    ].filter(Boolean);
+
+    for (const p of candidates) {
+      try {
+        if (fs.existsSync(path.join(p, 'index.html'))) {
+          return p;
+        }
+      } catch { /* ignore */ }
+    }
+    return candidates[0] || undefined;
   }
 
   async openSettings(): Promise<void> {
@@ -91,118 +110,90 @@ export class WebviewManager implements MessageHandler {
     const html = this.getWebviewHtml(backendUrl, projectId);
     this.panel.webview.html = html;
 
-    // Send initial project data after a short delay to ensure webview is ready
+    const token = this.apiClient?.getAuthToken();
     setTimeout(() => {
       this.panel?.webview.postMessage({
         type: 'init',
         payload: {
           projectId,
           backendUrl,
+          token,
         },
       });
-      logger.info('Sent init message to webview', { projectId, backendUrl });
+      logger.info('Sent init message to webview', { projectId, backendUrl, hasToken: !!token });
     }, 500);
   }
 
   private getWebviewHtml(backendUrl: string, projectId: string): string {
-    const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || process.cwd();
-    const possiblePaths = [
-      path.join(workspaceRoot, 'webview-ui', 'dist', 'index.html'),
-      path.join(workspaceRoot, '..', 'webview-ui', 'dist', 'index.html'),
-      path.join(this.context.extensionPath, '..', 'webview-ui', 'dist', 'index.html'),
-      path.join(this.context.extensionPath, '..', '..', 'webview-ui', 'dist', 'index.html'),
-    ];
+    const distPath = this.getWebviewDistPath();
+    const indexPath = distPath ? path.join(distPath, 'index.html') : null;
 
     let html = '';
-
-    for (const builtIndexPath of possiblePaths) {
+    if (indexPath) {
       try {
-        if (fs.existsSync(builtIndexPath)) {
-          html = fs.readFileSync(builtIndexPath, 'utf8');
-          logger.info('Found webview index.html', { path: builtIndexPath });
-          break;
-        }
-      } catch (e) {
-        // Continue to next path
-      }
+        html = fs.readFileSync(indexPath, 'utf8');
+        logger.info('Found webview index.html', { path: indexPath });
+      } catch { /* ignore */ }
     }
 
-    if (html) {
-      // Convert relative asset paths to VS Code webview URIs
-      const webview = this.panel?.webview;
-      if (webview) {
-        const assetsUri = vscode.Uri.joinPath(
-          vscode.Uri.file(path.join(this.context.extensionPath, '..', 'webview-ui', 'dist')),
-          'assets'
-        );
-        const assetsPath = webview.asWebviewUri(assetsUri).toString();
-        html = html.replace(/src="\.\/assets\//g, `src="${assetsPath}/`);
-        html = html.replace(/href="\.\/assets\//g, `href="${assetsPath}/`);
-      }
+    if (html && this.panel?.webview) {
+      const webview = this.panel.webview;
 
-      // Update CSP to allow VS Code webview - use backendUrl directly
-      const csp = `default-src 'self' https://*.vscode-cdn.net 'unsafe-inline' 'unsafe-eval'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.vscode-cdn.net; style-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.vscode-cdn.net; connect-src 'self' ${backendUrl} ws://localhost:* http://localhost:* wss://localhost:* https://*.anthropic.com; img-src 'self' data: https:; font-src 'self' data:;`;
+      const distUri = vscode.Uri.file(distPath!);
+      const assetsPath = webview.asWebviewUri(vscode.Uri.joinPath(distUri, 'assets')).toString();
 
-      // Remove old CSP meta and add new one
+      html = html.replace(/src="\.\/assets\//g, `src="${assetsPath}/`);
+      html = html.replace(/href="\.\/assets\//g, `href="${assetsPath}/`);
+
+      html = html.replace(/ crossorigin/g, '');
+
       html = html.replace(/<meta http-equiv="Content-Security-Policy"[^>]*>/, '');
 
-      // Insert new CSP right after <head>
+      const cspSource = webview.cspSource;
+      const csp = [
+        `default-src 'none'`,
+        `script-src ${cspSource} 'unsafe-inline' 'unsafe-eval'`,
+        `style-src ${cspSource} 'unsafe-inline'`,
+        `connect-src ${cspSource} ${backendUrl} ws://localhost:* http://localhost:* wss://localhost:* https://*.anthropic.com`,
+        `img-src ${cspSource} data: https:`,
+        `font-src ${cspSource} data:`,
+      ].join('; ');
+
       html = html.replace('<head>', `<head>\n    <meta http-equiv="Content-Security-Policy" content="${csp}">`);
 
-      logger.info('Updated CSP for webview', { backendUrl });
+      logger.info('Updated CSP for webview', { backendUrl, cspSource });
 
       return html;
-    } else {
-      // For debugging, show all paths tried
-      const pathsList = possiblePaths.join('<br/> - ');
-      // If built index.html not found, show instructions
-      return `<!DOCTYPE html>
+    }
+
+    const triedPaths = distPath || 'none found';
+    return `<!DOCTYPE html>
 <html>
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self' ${backendUrl} ws://localhost:* http://localhost:*;">
   <title>CodeMatrix Workflow</title>
   <style>
-    body {
-      font-family: var(--vscode-font-family);
-      padding: 20px;
-      background-color: var(--vscode-editor-background);
-      color: var(--vscode-editor-foreground);
-    }
-    .error {
-      color: var(--vscode-errorForeground);
-      text-align: center;
-      padding: 20px;
-    }
-    .instructions {
-      text-align: center;
-      color: var(--vscode-editor-foreground);
-      max-width: 600px;
-      margin: 0 auto;
-    }
+    body { font-family: var(--vscode-font-family); padding: 20px; background: var(--vscode-editor-background); color: var(--vscode-editor-foreground); }
+    .instructions { text-align: center; max-width: 600px; margin: 40px auto; }
     .instructions h1 { font-size: 1.5em; margin-bottom: 1em; color: var(--vscode-errorForeground); }
     .instructions p { margin-bottom: 1em; line-height: 1.6; }
-    .instructions code {
-      background: var(--vscode-editorWidget-background);
-      padding: 2px 6px;
-      border-radius: 3px;
-    }
+    pre { text-align: left; background: var(--vscode-editorWidget-background); padding: 10px; border-radius: 4px; }
   </style>
 </head>
 <body>
   <div class="instructions">
-    <h1>⚠️ Webview UI not built</h1>
-    <p>Please build the webview UI before opening:</p>
-    <pre style="text-align: left; background: var(--vscode-editorWidget-background); padding: 10px; border-radius: 4px;">cd webview-ui && pnpm install && pnpm build</pre>
-    <p>After building, close this panel and reopen the workflow.</p>
-    <hr style="margin: 20px 0; border-color: var(--vscode-editorWidget-background);">
-    <p style="font-size: 0.8em;">Debug - Tried paths:</p>
-    <pre style="font-size: 0.6em; text-align: left; word-break: break-all;"> - ${pathsList}</pre>
+    <h1>Webview UI 尚未构建</h1>
+    <p>请先构建 Webview UI：</p>
+    <pre>cd webview-ui && npm install && npm run build</pre>
+    <p>构建完成后，关闭此面板并重新打开工作流。</p>
+    <p style="font-size: 0.75em; margin-top: 20px; color: var(--vscode-descriptionForeground);">
+      Extension path: ${this.context.extensionPath}<br/>
+      Dist path tried: ${triedPaths}
+    </p>
   </div>
 </body>
 </html>`;
-    }
   }
 
   private getSettingsHtml(): string {
@@ -232,16 +223,16 @@ export class WebviewManager implements MessageHandler {
   </style>
 </head>
 <body>
-  <h1>⚙️ CodeMatrix Settings</h1>
+  <h1>⚙️ CodeMatrix 设置</h1>
   <div class="setting">
-    <label>Backend URL</label>
+    <label>后端地址</label>
     <input type="text" id="backendUrl" value="http://localhost:3001" />
   </div>
   <div class="setting">
-    <label>Anthropic API Key</label>
-    <input type="password" id="apiKey" placeholder="sk-ant-..." />
+    <label>AI API 密钥</label>
+    <input type="password" id="apiKey" placeholder="你的 API 密钥..." />
   </div>
-  <button onclick="saveSettings()">Save Settings</button>
+  <button onclick="saveSettings()">保存设置</button>
   <script>
     const vscode = acquireVsCodeApi();
     function saveSettings() {
@@ -256,6 +247,10 @@ export class WebviewManager implements MessageHandler {
   </script>
 </body>
 </html>`;
+  }
+
+  setApiClient(apiClient: ApiClient): void {
+    this.apiClient = apiClient;
   }
 
   getCurrentProjectId(): string | undefined {

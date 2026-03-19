@@ -20,6 +20,7 @@ export class MainPanel {
   async open(): Promise<void> {
     if (this.panel) {
       this.panel.reveal(vscode.ViewColumn.One);
+      await this.loadContent();
       return;
     }
 
@@ -50,19 +51,25 @@ export class MainPanel {
   private async loadContent(): Promise<void> {
     if (!this.panel) return;
 
-    // Wait for token to be loaded from secrets
     await this.apiClient.ensureTokenLoaded();
 
     const isAuthenticated = !!this.apiClient.getToken();
-    logger.info('Loading content', { isAuthenticated, hasToken: !!this.apiClient.getToken() });
+    logger.info('Loading content', { isAuthenticated });
 
-    const html = this.getHtml(isAuthenticated);
-    this.panel.webview.html = html;
-
+    let projects: any[] = [];
     if (isAuthenticated) {
-      // Send projects data
-      await this.sendProjects();
+      try {
+        const result = await this.apiClient.getProjects();
+        if (result.success && Array.isArray(result.data)) {
+          projects = result.data;
+        }
+      } catch (error) {
+        logger.error('Failed to fetch projects for panel', { error: String(error) });
+      }
     }
+
+    const html = this.getHtml(isAuthenticated, projects);
+    this.panel.webview.html = html;
   }
 
   private async handleMessage(message: { type: string; payload?: unknown }): Promise<void> {
@@ -94,13 +101,12 @@ export class MainPanel {
 
       if (result.success) {
         logger.info('User logged in');
-        // Save token to VS Code secrets
         const token = (result.data as any)?.token;
         if (token) {
           await this.apiClient.saveAuthToken(token);
+          vscode.commands.executeCommand('setContext', 'codematrix.isLoggedIn', true);
         }
         await this.loadContent();
-        this.panel?.webview.postMessage({ type: 'loggedIn', payload: result.data });
       } else {
         this.panel?.webview.postMessage({ type: 'error', payload: { message: result.error || 'Login failed' } });
       }
@@ -116,13 +122,12 @@ export class MainPanel {
 
       if (result.success) {
         logger.info('User registered');
-        // Save token to VS Code secrets
         const token = (result.data as any)?.token;
         if (token) {
           await this.apiClient.saveAuthToken(token);
+          vscode.commands.executeCommand('setContext', 'codematrix.isLoggedIn', true);
         }
         await this.loadContent();
-        this.panel?.webview.postMessage({ type: 'registered', payload: result.data });
       } else {
         this.panel?.webview.postMessage({ type: 'error', payload: { message: result.error || 'Registration failed' } });
       }
@@ -135,16 +140,12 @@ export class MainPanel {
   private async handleLogout(): Promise<void> {
     try {
       await this.apiClient.logout();
-      await this.apiClient.clearAuthToken();
-      await this.loadContent();
-      this.panel?.webview.postMessage({ type: 'loggedOut' });
     } catch (error) {
       logger.error('Logout error', { error: String(error) });
-      // Still try to clear local state
-      await this.apiClient.clearAuthToken();
-      await this.loadContent();
-      this.panel?.webview.postMessage({ type: 'loggedOut' });
     }
+    await this.apiClient.clearAuthToken();
+    vscode.commands.executeCommand('setContext', 'codematrix.isLoggedIn', false);
+    await this.loadContent();
   }
 
   private async handleCreateProject(payload: { name: string; description?: string }): Promise<void> {
@@ -173,13 +174,23 @@ export class MainPanel {
       const result = await this.apiClient.getProjects();
       if (result.success && result.data) {
         this.panel?.webview.postMessage({ type: 'projects', payload: result.data });
+      } else {
+        this.panel?.webview.postMessage({ type: 'projects', payload: [] });
+        if (result.error) {
+          logger.warn('Failed to fetch projects from API', { error: result.error });
+        }
       }
     } catch (error) {
       logger.error('Failed to get projects', { error: String(error) });
+      this.panel?.webview.postMessage({ type: 'projects', payload: [] });
+      this.panel?.webview.postMessage({
+        type: 'error',
+        payload: { message: 'Failed to load projects. Is the backend running?' },
+      });
     }
   }
 
-  private getHtml(isAuthenticated: boolean): string {
+  private getHtml(isAuthenticated: boolean, projects: any[] = []): string {
     const backendUrl = vscode.workspace.getConfiguration('codematrix').get<string>('backendUrl', 'http://localhost:3001');
 
     return `<!DOCTYPE html>
@@ -258,183 +269,151 @@ export class MainPanel {
       <h1>CodeMatrix Studio</h1>
       <div id="userInfo" class="${isAuthenticated ? '' : 'hidden'}">
         <span class="user-info" id="userEmail"></span>
-        <button class="btn btn-secondary" onclick="logout()">Logout</button>
+        <button class="btn btn-secondary" onclick="logout()">退出登录</button>
       </div>
     </div>
 
-    <!-- Auth Section -->
     <div id="authSection" class="${isAuthenticated ? 'hidden' : ''}">
       <div class="tabs">
-        <button class="tab active" onclick="showTab('login')">Login</button>
-        <button class="tab" onclick="showTab('register')">Register</button>
+        <button class="tab active" onclick="showTab('login')">登录</button>
+        <button class="tab" onclick="showTab('register')">注册</button>
       </div>
 
-      <!-- Login Form -->
       <div id="loginTab">
         <div class="card">
-          <h2>Login</h2>
+          <h2>登录</h2>
           <div class="form-group">
-            <label>Email</label>
+            <label>邮箱</label>
             <input type="email" id="loginEmail" placeholder="your@email.com">
           </div>
           <div class="form-group">
-            <label>Password</label>
-            <input type="password" id="loginPassword" placeholder="Password">
+            <label>密码</label>
+            <input type="password" id="loginPassword" placeholder="请输入密码">
           </div>
-          <button class="btn btn-primary" onclick="login()">Login</button>
+          <button class="btn btn-primary" onclick="login()">登录</button>
           <div id="loginError" class="error"></div>
         </div>
       </div>
 
-      <!-- Register Form -->
       <div id="registerTab" class="hidden">
         <div class="card">
-          <h2>Register</h2>
+          <h2>注册</h2>
           <div class="form-group">
-            <label>Name</label>
-            <input type="text" id="registerName" placeholder="Your Name">
+            <label>姓名</label>
+            <input type="text" id="registerName" placeholder="你的姓名">
           </div>
           <div class="form-group">
-            <label>Email</label>
+            <label>邮箱</label>
             <input type="email" id="registerEmail" placeholder="your@email.com">
           </div>
           <div class="form-group">
-            <label>Password</label>
-            <input type="password" id="registerPassword" placeholder="Password">
+            <label>密码</label>
+            <input type="password" id="registerPassword" placeholder="请输入密码">
           </div>
-          <button class="btn btn-primary" onclick="register()">Register</button>
+          <button class="btn btn-primary" onclick="register()">注册</button>
           <div id="registerError" class="error"></div>
         </div>
       </div>
     </div>
 
-    <!-- Projects Section -->
     <div id="projectsSection" class="${isAuthenticated ? '' : 'hidden'}">
       <div class="card">
-        <h2>Create New Project</h2>
+        <h2>创建新项目</h2>
         <div class="form-group">
-          <label>Project Name</label>
-          <input type="text" id="projectName" placeholder="My Project">
+          <label>项目名称</label>
+          <input type="text" id="projectName" placeholder="我的项目">
         </div>
         <div class="form-group">
-          <label>Description (optional)</label>
-          <input type="text" id="projectDescription" placeholder="Project description">
+          <label>项目描述（可选）</label>
+          <input type="text" id="projectDescription" placeholder="简要描述你的项目">
         </div>
-        <button class="btn btn-primary" onclick="createProject()">Create Project</button>
+        <button class="btn btn-primary" onclick="createProject()">创建项目</button>
         <div id="createProjectError" class="error"></div>
         <div id="createProjectSuccess" class="success"></div>
       </div>
 
-      <h2>Your Projects</h2>
-      <div id="projectList" class="project-list">
-        <p>Loading projects...</p>
-      </div>
+      <h2>我的项目</h2>
+      <div id="projectList" class="project-list"></div>
     </div>
   </div>
 
   <script>
-    const vscode = acquireVsCodeApi();
+    (function() {
+      var vscode = acquireVsCodeApi();
+      var initialProjects = ${JSON.stringify(projects)};
 
-    function showTab(tab) {
-      document.getElementById('loginTab').classList.toggle('hidden', tab !== 'login');
-      document.getElementById('registerTab').classList.toggle('hidden', tab !== 'register');
-      document.querySelectorAll('.tab').forEach((el, i) => {
-        el.classList.toggle('active', (tab === 'login' && i === 0) || (tab === 'register' && i === 1));
+      function postMsg(type, payload) {
+        vscode.postMessage({ type: type, payload: payload });
+      }
+
+      function renderProjects(projects) {
+        var container = document.getElementById('projectList');
+        if (!container) return;
+        if (!projects || projects.length === 0) {
+          container.innerHTML = '<p>暂无项目，请在上方创建。</p>';
+          return;
+        }
+        container.innerHTML = projects.map(function(p) {
+          return '<div class="project-item" data-id="' + p.id + '">' +
+            '<div><div class="project-name">' + (p.name || '') + '</div>' +
+            '<div class="project-date">创建于：' + new Date(p.createdAt).toLocaleDateString() + '</div></div>' +
+            '<button class="btn btn-primary">打开</button></div>';
+        }).join('');
+
+        container.querySelectorAll('.project-item').forEach(function(el) {
+          el.addEventListener('click', function() {
+            postMsg('openProject', { projectId: el.getAttribute('data-id') });
+          });
+        });
+      }
+
+      window.showTab = function(tab) {
+        document.getElementById('loginTab').classList.toggle('hidden', tab !== 'login');
+        document.getElementById('registerTab').classList.toggle('hidden', tab !== 'register');
+        document.querySelectorAll('.tab').forEach(function(el, i) {
+          el.classList.toggle('active', (tab === 'login' && i === 0) || (tab === 'register' && i === 1));
+        });
+      };
+      window.login = function() {
+        var email = document.getElementById('loginEmail').value;
+        var password = document.getElementById('loginPassword').value;
+        if (!email || !password) { document.getElementById('loginError').textContent = '请填写所有字段'; return; }
+        postMsg('login', { email: email, password: password });
+      };
+      window.register = function() {
+        var name = document.getElementById('registerName').value;
+        var email = document.getElementById('registerEmail').value;
+        var password = document.getElementById('registerPassword').value;
+        if (!name || !email || !password) { document.getElementById('registerError').textContent = '请填写所有字段'; return; }
+        postMsg('register', { name: name, email: email, password: password });
+      };
+      window.logout = function() { postMsg('logout'); };
+      window.createProject = function() {
+        var name = document.getElementById('projectName').value;
+        var description = document.getElementById('projectDescription').value;
+        if (!name) { document.getElementById('createProjectError').textContent = '请输入项目名称'; return; }
+        document.getElementById('createProjectError').textContent = '';
+        document.getElementById('createProjectSuccess').textContent = '';
+        postMsg('createProject', { name: name, description: description });
+      };
+
+      window.addEventListener('message', function(event) {
+        var message = event.data;
+        if (message.type === 'projects') {
+          renderProjects(message.payload);
+        } else if (message.type === 'error') {
+          var errorEl = document.querySelector('.error');
+          if (errorEl) errorEl.textContent = (message.payload && message.payload.message) || '发生错误';
+        } else if (message.type === 'projectCreated') {
+          document.getElementById('createProjectSuccess').textContent = '项目创建成功！';
+          document.getElementById('projectName').value = '';
+          document.getElementById('projectDescription').value = '';
+          postMsg('refresh');
+        }
       });
-    }
 
-    function login() {
-      const email = document.getElementById('loginEmail').value;
-      const password = document.getElementById('loginPassword').value;
-
-      if (!email || !password) {
-        document.getElementById('loginError').textContent = 'Please fill in all fields';
-        return;
-      }
-
-      vscode.postMessage({ type: 'login', payload: { email, password } });
-    }
-
-    function register() {
-      const name = document.getElementById('registerName').value;
-      const email = document.getElementById('registerEmail').value;
-      const password = document.getElementById('registerPassword').value;
-
-      if (!name || !email || !password) {
-        document.getElementById('registerError').textContent = 'Please fill in all fields';
-        return;
-      }
-
-      vscode.postMessage({ type: 'register', payload: { name, email, password } });
-    }
-
-    function logout() {
-      vscode.postMessage({ type: 'logout' });
-    }
-
-    function createProject() {
-      const name = document.getElementById('projectName').value;
-      const description = document.getElementById('projectDescription').value;
-
-      if (!name) {
-        document.getElementById('createProjectError').textContent = 'Please enter a project name';
-        return;
-      }
-
-      document.getElementById('createProjectError').textContent = '';
-      document.getElementById('createProjectSuccess').textContent = '';
-      vscode.postMessage({ type: 'createProject', payload: { name, description } });
-    }
-
-    function openProject(projectId) {
-      vscode.postMessage({ type: 'openProject', payload: { projectId } });
-    }
-
-    // Listen for messages from extension
-    window.addEventListener('message', (event) => {
-      const message = event.data;
-
-      if (message.type === 'projects') {
-        renderProjects(message.payload);
-      } else if (message.type === 'loggedIn' || message.type === 'registered') {
-        document.getElementById('authSection').classList.add('hidden');
-        document.getElementById('projectsSection').classList.remove('hidden');
-        document.getElementById('userInfo').classList.remove('hidden');
-        document.getElementById('userEmail').textContent = message.payload?.user?.email || '';
-      } else if (message.type === 'loggedOut') {
-        document.getElementById('authSection').classList.remove('hidden');
-        document.getElementById('projectsSection').classList.add('hidden');
-        document.getElementById('userInfo').classList.add('hidden');
-      } else if (message.type === 'error') {
-        const errorEl = document.querySelector('.card:not(.hidden) .error');
-        if (errorEl) errorEl.textContent = message.payload?.message || 'An error occurred';
-      } else if (message.type === 'projectCreated') {
-        document.getElementById('createProjectSuccess').textContent = 'Project created!';
-        document.getElementById('projectName').value = '';
-        document.getElementById('projectDescription').value = '';
-        vscode.postMessage({ type: 'refresh' });
-      }
-    });
-
-    function renderProjects(projects) {
-      const container = document.getElementById('projectList');
-      if (!projects || projects.length === 0) {
-        container.innerHTML = '<p>No projects yet. Create one above!</p>';
-        return;
-      }
-
-      let html = '';
-      for (const p of projects) {
-        html += '<div class="project-item" onclick="openProject(\'' + p.id + '\')">' +
-          '<div><div class="project-name">' + p.name + '</div>' +
-          '<div class="project-date">Created: ' + new Date(p.createdAt).toLocaleDateString() + '</div></div>' +
-          '<button class="btn btn-primary">Open</button></div>';
-      }
-      container.innerHTML = html;
-    }
-
-    // Request initial data if authenticated
-    vscode.postMessage({ type: 'refresh' });
+      renderProjects(initialProjects);
+    })();
   </script>
 </body>
 </html>`;

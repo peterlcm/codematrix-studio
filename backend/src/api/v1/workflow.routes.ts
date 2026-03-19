@@ -3,7 +3,10 @@ import { z } from 'zod';
 import { prisma } from '../../database/db';
 import { authMiddleware, AuthRequest } from '../../middleware/auth';
 import { WorkflowEngine } from '../../services/workflow/WorkflowEngine';
+import { AIGateway } from '../../services/ai/AIGateway';
 import { logger } from '../../utils/logger';
+
+const aiGateway = new AIGateway();
 
 export const workflowRoutes = Router();
 
@@ -136,9 +139,6 @@ workflowRoutes.post('/', authMiddleware, async (req: AuthRequest, res: Response)
     });
 
     logger.info({ workflowId: workflow.id, projectId: data.projectId }, 'Workflow created');
-
-    // Trigger AI to generate initial PRD
-    workflowEngine.triggerAIForStage(workflow.stages[0].id, project.name, data.initialPrompt);
 
     res.status(201).json({
       success: true,
@@ -296,26 +296,6 @@ workflowRoutes.post('/stage/:stageId/approve', authMiddleware, async (req: AuthR
       return res.status(400).json(result);
     }
 
-    // If approved, trigger AI for next stage
-    if (data.approved && result.stage) {
-      const workflow = await prisma.workflow.findUnique({
-        where: { id: result.stage.workflowId },
-        include: {
-          project: true,
-          stages: { orderBy: { createdAt: 'asc' } },
-        },
-      });
-
-      if (workflow) {
-        // Get the next stage
-        const nextStageIndex = workflow.stages.findIndex((s: { id: string }) => s.id === stageId) + 1;
-        if (nextStageIndex < workflow.stages.length) {
-          const nextStage = workflow.stages[nextStageIndex];
-          workflowEngine.triggerAIForNextStage(nextStage.id, workflow, result.stage);
-        }
-      }
-    }
-
     res.json(result);
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -440,7 +420,7 @@ workflowRoutes.post('/stage/:stageId/regenerate', authMiddleware, async (req: Au
       });
     }
 
-    // Trigger AI regeneration
+    // Trigger AI regeneration (non-streaming fallback)
     await workflowEngine.triggerAIForStage(stageId, stage.workflow.project.name);
 
     res.json({
@@ -453,5 +433,97 @@ workflowRoutes.post('/stage/:stageId/regenerate', authMiddleware, async (req: Au
       success: false,
       error: 'Failed to trigger AI regeneration',
     });
+  }
+});
+
+// SSE streaming AI generation for a stage
+workflowRoutes.post('/stage/:stageId/generate-stream', authMiddleware, async (req: AuthRequest, res: Response) => {
+  const { stageId } = req.params;
+
+  try {
+    const stage = await prisma.stage.findUnique({
+      where: { id: stageId },
+      include: {
+        workflow: {
+          include: {
+            project: true,
+            stages: { orderBy: { createdAt: 'asc' } },
+          },
+        },
+      },
+    });
+
+    if (!stage) {
+      return res.status(404).json({ success: false, error: 'Stage not found' });
+    }
+
+    const project = stage.workflow.project;
+    const hasAccess = project.ownerId === req.userId ||
+      await prisma.projectUser.findFirst({
+        where: { projectId: project.id, userId: req.userId, role: { in: ['OWNER', 'EDITOR'] } },
+      });
+
+    if (!hasAccess) {
+      return res.status(403).json({ success: false, error: 'Unauthorized' });
+    }
+
+    await prisma.stage.update({
+      where: { id: stageId },
+      data: { status: 'AI_PROCESSING' },
+    });
+
+    res.writeHead(200, {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      Connection: 'keep-alive',
+      'X-Accel-Buffering': 'no',
+    });
+
+    const allStages = stage.workflow.stages;
+    const prdStage = allStages.find((s: any) => s.stageType === 'PRD_DESIGN' && (s.approved || s.aiContent));
+    const uiStage = allStages.find((s: any) => s.stageType === 'UI_UX_DESIGN' && (s.approved || s.aiContent));
+    const codeStage = allStages.find((s: any) => s.stageType === 'DEVELOPMENT' && (s.approved || s.aiContent));
+
+    const variables: Record<string, string | undefined> = {
+      projectName: project.name,
+      projectDescription: req.body.initialPrompt,
+      initialPrompt: req.body.initialPrompt,
+      prdContent: prdStage ? (prdStage.humanContent || prdStage.aiContent || '') : '',
+      uiDesignContent: uiStage ? (uiStage.humanContent || uiStage.aiContent || '') : '',
+      codeContent: codeStage ? (codeStage.humanContent || codeStage.aiContent || '') : '',
+      testFramework: 'Jest + React Testing Library',
+    };
+
+    const prompt = aiGateway.renderPrompt(stage.stageType, variables);
+    let fullContent = '';
+
+    try {
+      for await (const chunk of aiGateway.completeStream(prompt)) {
+        fullContent += chunk;
+        res.write(`data: ${JSON.stringify({ type: 'chunk', content: chunk })}\n\n`);
+      }
+
+      await prisma.stage.update({
+        where: { id: stageId },
+        data: { aiContent: fullContent, status: 'READY_FOR_REVIEW' },
+      });
+
+      res.write(`data: ${JSON.stringify({ type: 'done' })}\n\n`);
+      logger.info('Streaming AI generation completed', { stageId, stageType: stage.stageType });
+    } catch (aiError) {
+      await prisma.stage.update({
+        where: { id: stageId },
+        data: { status: 'PENDING' },
+      });
+      res.write(`data: ${JSON.stringify({ type: 'error', message: String(aiError) })}\n\n`);
+      logger.error('Streaming AI generation failed', { stageId, error: String(aiError) });
+    }
+
+    res.end();
+  } catch (error) {
+    logger.error('Failed to start streaming generation', { stageId, error: String(error) });
+    if (!res.headersSent) {
+      res.status(500).json({ success: false, error: 'Failed to start generation' });
+    }
   }
 });

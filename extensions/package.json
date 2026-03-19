@@ -11,12 +11,7 @@
     "Other",
     "AI"
   ],
-  "activationEvents": [
-    "onCommand:codematrix.openMain",
-    "onCommand:codematrix.initProject",
-    "onCommand:codematrix.openWorkflow",
-    "onView:codematrix.workflowSidebar"
-  ],
+  "activationEvents": [],
   "main": "./dist/extension.js",
   "contributes": {
     "commands": [
@@ -42,15 +37,23 @@
       },
       {
         "command": "codematrix.login",
-        "title": "CodeMatrix: Login"
+        "title": "CodeMatrix: Login",
+        "icon": "$(sign-in)"
       },
       {
         "command": "codematrix.logout",
-        "title": "CodeMatrix: Logout"
+        "title": "CodeMatrix: Logout",
+        "icon": "$(sign-out)"
+      },
+      {
+        "command": "codematrix.refreshSidebar",
+        "title": "CodeMatrix: Refresh",
+        "icon": "$(refresh)"
       },
       {
         "command": "codematrix.openSettings",
-        "title": "CodeMatrix: Open Settings"
+        "title": "CodeMatrix: Open Settings",
+        "icon": "$(gear)"
       }
     ],
     "viewsContainers": {
@@ -68,6 +71,39 @@
           "id": "codematrix.workflowSidebar",
           "name": "Workflow",
           "type": "tree"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "CodeMatrix Studio",
+      "properties": {
+        "codematrix.backendUrl": {
+          "type": "string",
+          "default": "http://localhost:3001",
+          "description": "Backend API server URL"
+        }
+      }
+    },
+    "menus": {
+      "view/title": [
+        {
+          "command": "codematrix.login",
+          "when": "view == codematrix.workflowSidebar && !codematrix.isLoggedIn",
+          "group": "navigation"
+        },
+        {
+          "command": "codematrix.logout",
+          "when": "view == codematrix.workflowSidebar && codematrix.isLoggedIn",
+          "group": "navigation"
+        },
+        {
+          "command": "codematrix.refreshSidebar",
+          "when": "view == codematrix.workflowSidebar",
+          "group": "navigation"
+        },
+        {
+          "command": "codematrix.openSettings",
+          "when": "view == codematrix.workflowSidebar"
         }
       ]
     }

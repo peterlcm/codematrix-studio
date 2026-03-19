@@ -5,102 +5,97 @@ import { WorkflowSidebarProvider } from './sidebar/WorkflowSidebarProvider';
 import { ApiClient } from './services/apiClient';
 import { logger } from './utils/logger';
 
-// Global references to prevent garbage collection
 let webviewManager: WebviewManager;
 let mainPanel: MainPanel;
 let sidebarProvider: WorkflowSidebarProvider;
 let apiClient: ApiClient;
 
+function updateLoginContext(loggedIn: boolean) {
+  vscode.commands.executeCommand('setContext', 'codematrix.isLoggedIn', loggedIn);
+}
+
 export function activate(context: vscode.ExtensionContext) {
   logger.info('CodeMatrix Studio extension activating...');
 
-  // Initialize API client
   apiClient = new ApiClient(context);
 
-  // Initialize webview manager
   webviewManager = new WebviewManager(context);
+  webviewManager.setApiClient(apiClient);
 
-  // Initialize main panel (for login/project UI)
   mainPanel = new MainPanel(context, apiClient, webviewManager);
 
-  // Initialize sidebar provider
   sidebarProvider = new WorkflowSidebarProvider(context, apiClient);
   vscode.window.registerTreeDataProvider('codematrix.workflowSidebar', sidebarProvider);
 
-  // Register commands
   registerCommands(context);
-
-  // Register authentication commands
   registerAuthCommands(context);
+
+  apiClient.ensureTokenLoaded().then(() => {
+    updateLoginContext(apiClient.isAuthenticated());
+    sidebarProvider.refresh();
+  });
 
   logger.info('CodeMatrix Studio extension activated');
 }
 
 function registerCommands(context: vscode.ExtensionContext) {
-  // Open main panel (login, projects, etc.)
   context.subscriptions.push(
     vscode.commands.registerCommand('codematrix.openMain', async () => {
       try {
         await mainPanel.open();
       } catch (error) {
         logger.error('Failed to open main panel', error);
-        vscode.window.showErrorMessage('Failed to open CodeMatrix Studio');
+        vscode.window.showErrorMessage('无法打开 CodeMatrix Studio');
       }
     })
   );
 
-  // Initialize new project
   context.subscriptions.push(
     vscode.commands.registerCommand('codematrix.initProject', async () => {
       try {
         const projectName = await vscode.window.showInputBox({
-          prompt: 'Enter project name',
-          placeHolder: 'My Awesome Project',
+          prompt: '请输入项目名称',
+          placeHolder: '我的新项目',
           validateInput: (value) => {
-            return value.trim() ? null : 'Project name is required';
+            return value.trim() ? null : '项目名称不能为空';
           },
         });
 
         if (!projectName) return;
 
         const description = await vscode.window.showInputBox({
-          prompt: 'Enter project description (optional)',
-          placeHolder: 'A brief description of your project',
+          prompt: '请输入项目描述（可选）',
+          placeHolder: '简要描述你的项目',
         });
 
-        // Create project via API
         const result = await apiClient.createProject(projectName, description);
 
         if (result.success && result.data) {
-          vscode.window.showInformationMessage(`Project "${projectName}" created successfully!`);
-
-          // Open the workflow webview
+          vscode.window.showInformationMessage(`项目「${projectName}」创建成功！`);
           webviewManager.openWorkflow((result.data as any).id);
         } else {
-          vscode.window.showErrorMessage(`Failed to create project: ${result.error}`);
+          vscode.window.showErrorMessage(`创建项目失败：${result.error}`);
         }
       } catch (error) {
         logger.error('Failed to initialize project', error);
-        vscode.window.showErrorMessage('Failed to initialize project. Make sure the backend is running.');
+        vscode.window.showErrorMessage('创建项目失败，请确保后端服务正在运行。');
       }
     })
   );
 
-  // Open workflow
   context.subscriptions.push(
     vscode.commands.registerCommand('codematrix.openWorkflow', async () => {
       try {
-        // Show project picker
         const projects = await apiClient.getProjects();
 
         if (!projects.success || !projects.data || projects.data.length === 0) {
           const createNew = await vscode.window.showInformationMessage(
-            'No projects found. Create a new project?',
-            'Create Project',
-            'Cancel'
+            '暂无项目，是否创建新项目？',
+            '创建项目',
+            '取消'
           );
 
-          if (createNew === 'Create Project') {
+          if (createNew === '创建项目') {
             vscode.commands.executeCommand('codematrix.initProject');
           }
           return;
@@ -111,7 +106,7 @@ function registerCommands(context: vscode.ExtensionContext) {
             label: p.name,
             project: p,
           })),
-          { placeHolder: 'Select a project' }
+          { placeHolder: '选择一个项目' }
         );
 
         if (selected) {
@@ -119,56 +114,54 @@ function registerCommands(context: vscode.ExtensionContext) {
         }
       } catch (error) {
         logger.error('Failed to open workflow', error);
-        vscode.window.showErrorMessage('Failed to open workflow');
+        vscode.window.showErrorMessage('打开工作流失败');
       }
     })
   );
 
-  // Approve current stage
   context.subscriptions.push(
     vscode.commands.registerCommand('codematrix.approveStage', async () => {
       try {
         const projectId = webviewManager.getCurrentProjectId();
         if (!projectId) {
-          vscode.window.showWarningMessage('No project selected. Open a workflow first.');
+          vscode.window.showWarningMessage('请先打开一个项目的工作流。');
           return;
         }
 
         const feedback = await vscode.window.showInputBox({
-          prompt: 'Add feedback (optional)',
-          placeHolder: 'Great work!',
+          prompt: '添加反馈意见（可选）',
+          placeHolder: '做得很好！',
         });
 
         const result = await apiClient.approveCurrentStage(projectId, true, feedback);
 
         if (result.success) {
-          vscode.window.showInformationMessage('Stage approved!');
+          vscode.window.showInformationMessage('阶段已确认通过！');
           sidebarProvider.refresh();
         } else {
-          vscode.window.showErrorMessage(`Failed to approve: ${result.error}`);
+          vscode.window.showErrorMessage(`确认失败：${result.error}`);
         }
       } catch (error) {
         logger.error('Failed to approve stage', error);
-        vscode.window.showErrorMessage('Failed to approve stage');
+        vscode.window.showErrorMessage('确认阶段失败');
       }
     })
   );
 
-  // Request revision
   context.subscriptions.push(
     vscode.commands.registerCommand('codematrix.requestRevision', async () => {
       try {
         const projectId = webviewManager.getCurrentProjectId();
         if (!projectId) {
-          vscode.window.showWarningMessage('No project selected. Open a workflow first.');
+          vscode.window.showWarningMessage('请先打开一个项目的工作流。');
           return;
         }
 
         const feedback = await vscode.window.showInputBox({
-          prompt: 'Describe the changes needed',
-          placeHolder: 'Please revise the...',
+          prompt: '请描述需要修改的内容',
+          placeHolder: '请修改...',
           validateInput: (value) => {
-            return value.trim() ? null : 'Feedback is required when requesting revision';
+            return value.trim() ? null : '请求修改时必须提供反馈意见';
           },
         });
 
@@ -177,27 +170,21 @@ function registerCommands(context: vscode.ExtensionContext) {
         const result = await apiClient.approveCurrentStage(projectId, false, feedback);
 
         if (result.success) {
-          vscode.window.showInformationMessage('Revision requested');
+          vscode.window.showInformationMessage('已请求修改');
           sidebarProvider.refresh();
         } else {
-          vscode.window.showErrorMessage(`Failed to request revision: ${result.error}`);
+          vscode.window.showErrorMessage(`请求修改失败：${result.error}`);
         }
       } catch (error) {
         logger.error('Failed to request revision', error);
-        vscode.window.showErrorMessage('Failed to request revision');
+        vscode.window.showErrorMessage('请求修改失败');
       }
     })
   );
 
-  // Open settings
   context.subscriptions.push(
     vscode.commands.registerCommand('codematrix.openSettings', async () => {
       try {
-        // Get backend URL from settings
-        const config = vscode.workspace.getConfiguration('codematrix');
-        const backendUrl = config.get<string>('backendUrl', 'http://localhost:3001');
-
-        // Open webview with settings
         webviewManager.openSettings();
       } catch (error) {
         logger.error('Failed to open settings', error);
@@ -207,23 +194,22 @@ function registerCommands(context: vscode.ExtensionContext) {
 }
 
 function registerAuthCommands(context: vscode.ExtensionContext) {
-  // Login
   context.subscriptions.push(
     vscode.commands.registerCommand('codematrix.login', async () => {
       try {
         const email = await vscode.window.showInputBox({
-          prompt: 'Enter your email',
+          prompt: '请输入邮箱',
           placeHolder: 'you@example.com',
           validateInput: (value) => {
-            return value.includes('@') ? null : 'Please enter a valid email';
+            return value.includes('@') ? null : '请输入有效的邮箱地址';
           },
         });
 
         if (!email) return;
 
         const password = await vscode.window.showInputBox({
-          prompt: 'Enter your password',
-          placeHolder: 'Password',
+          prompt: '请输入密码',
+          placeHolder: '密码',
           password: true,
         });
 
@@ -232,33 +218,41 @@ function registerAuthCommands(context: vscode.ExtensionContext) {
         const result = await apiClient.login(email, password);
 
         if (result.success) {
-          // Save token to extension global state
           const token = (result.data as any)?.token;
           if (token) {
             await context.secrets.store('authToken', token);
             apiClient.setAuthToken(token);
           }
-          vscode.window.showInformationMessage('Logged in successfully!');
+          updateLoginContext(true);
+          sidebarProvider.refresh();
+          vscode.window.showInformationMessage('登录成功！');
         } else {
-          vscode.window.showErrorMessage(`Login failed: ${result.error}`);
+          vscode.window.showErrorMessage(`登录失败：${result.error}`);
         }
       } catch (error) {
         logger.error('Login failed', error);
-        vscode.window.showErrorMessage('Login failed. Make sure the backend is running.');
+        vscode.window.showErrorMessage('登录失败，请确保后端服务正在运行。');
       }
     })
   );
 
-  // Logout
   context.subscriptions.push(
     vscode.commands.registerCommand('codematrix.logout', async () => {
       try {
         await apiClient.logout();
         await context.secrets.delete('authToken');
-        vscode.window.showInformationMessage('Logged out successfully');
+        updateLoginContext(false);
+        sidebarProvider.refresh();
+        vscode.window.showInformationMessage('已退出登录');
       } catch (error) {
         logger.error('Logout failed', error);
       }
+    })
+  );
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand('codematrix.refreshSidebar', () => {
+      sidebarProvider.refresh();
     })
   );
 }

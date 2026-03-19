@@ -9,7 +9,6 @@ import { aiRoutes } from './api/v1/ai.routes';
 import { inviteRoutes } from './api/v1/invite.routes';
 import { analyticsRoutes } from './api/v1/analytics.routes';
 import { pluginRoutes, setPluginLoader } from './extensions/plugin.routes';
-import { analyticsRoutes } from './api/v1/analytics.routes';
 import { PluginLoader } from './extensions/PluginLoader';
 import { errorHandler } from './middleware/errorHandler';
 import { logger } from './utils/logger';

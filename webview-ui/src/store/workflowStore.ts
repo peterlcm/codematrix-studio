@@ -47,38 +47,44 @@ export interface Workflow {
 }
 
 interface WorkflowState {
-  // Data
   workflow: Workflow | null;
   currentStage: Stage | null;
   isLoading: boolean;
+  isGenerating: boolean;
+  streamingContent: string;
   error: string | null;
   isAuthenticated: boolean;
   currentUser: User | null;
   backendUrl: string;
+  authToken: string | null;
 
-  // Actions
   setWorkflow: (workflow: Workflow) => void;
   setCurrentStage: (stage: Stage) => void;
   selectStage: (stageId: string) => void;
   loadWorkflow: (projectId: string) => Promise<void>;
+  createWorkflow: (projectId: string, initialPrompt?: string) => Promise<void>;
+  generateStage: (stageId: string, initialPrompt?: string) => Promise<void>;
   updateStageContent: (content: string) => Promise<void>;
   approveStage: (approved: boolean, feedback?: string) => Promise<void>;
   addComment: (content: string, threadId?: string) => Promise<void>;
   regenerateStage: () => Promise<void>;
   setBackendUrl: (url: string) => void;
+  setAuthToken: (token: string) => void;
   setAuthStatus: (authenticated: boolean, user?: { user: User }) => void;
   setError: (error: string | null) => void;
 }
 
 export const useWorkflowStore = create<WorkflowState>((set, get) => ({
-  // Initial state
   workflow: null,
   currentStage: null,
   isLoading: false,
+  isGenerating: false,
+  streamingContent: '',
   error: null,
   isAuthenticated: false,
   currentUser: null,
   backendUrl: 'http://localhost:3001',
+  authToken: null,
 
   // Actions
   setWorkflow: (workflow) => {
@@ -118,7 +124,7 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
         backendUrl = 'http://localhost:3001';
         set({ backendUrl });
       }
-      const token = localStorage.getItem('codematrix-token');
+      const token = get().authToken;
 
       console.log('[WorkflowStore] Loading workflow for project:', projectId);
       console.log('[WorkflowStore] Backend URL:', backendUrl);
@@ -142,8 +148,7 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
 
       const result = await response.json();
 
-      if (result.success) {
-        // Fetch project name for display
+      if (result.success && result.data) {
         const projectResponse = await fetch(`${backendUrl}/api/v1/projects/${projectId}`, {
           headers: {
             'Content-Type': 'application/json',
@@ -154,21 +159,24 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
         const projectData = await projectResponse.json();
         const projectName = projectData.data?.name || 'Project';
 
+        const stages = result.data.stages || [];
         const workflowWithName = {
           ...result.data,
           projectName,
+          stages,
         };
 
         set({ workflow: workflowWithName, isLoading: false });
 
-        // Set current stage
-        const currentStage = workflowWithName.stages.find(
+        const currentStage = stages.find(
           (s: Stage) => s.status === 'AI_PROCESSING' ||
                 s.status === 'READY_FOR_REVIEW' ||
                 s.status === 'REVISION_REQUESTED'
-        ) || workflowWithName.stages[0];
+        ) || stages[0] || null;
 
         set({ currentStage });
+      } else if (result.success && !result.data) {
+        set({ workflow: null, currentStage: null, isLoading: false });
       } else {
         throw new Error(result.error || 'Failed to load workflow');
       }
@@ -177,11 +185,116 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
     }
   },
 
+  createWorkflow: async (projectId, initialPrompt) => {
+    set({ isLoading: true, error: null });
+
+    try {
+      const { backendUrl, authToken: token } = get();
+
+      const response = await fetch(`${backendUrl}/api/v1/workflows`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ projectId, initialPrompt: initialPrompt || undefined }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to create workflow: ${response.statusText} - ${errorText}`);
+      }
+
+      const result = await response.json();
+
+      if (result.success) {
+        await get().loadWorkflow(projectId);
+      } else {
+        throw new Error(result.error || 'Failed to create workflow');
+      }
+    } catch (error) {
+      set({ error: (error as Error).message, isLoading: false });
+    }
+  },
+
+  generateStage: async (stageId, initialPrompt) => {
+    set({ isGenerating: true, streamingContent: '', error: null });
+
+    const { backendUrl, authToken: token, workflow } = get();
+    if (!workflow) return;
+
+    const stage = workflow.stages.find(s => s.id === stageId);
+    if (stage) {
+      const updatedStages = workflow.stages.map(s =>
+        s.id === stageId ? { ...s, status: 'AI_PROCESSING' as const } : s
+      );
+      set({
+        workflow: { ...workflow, stages: updatedStages },
+        currentStage: { ...stage, status: 'AI_PROCESSING' },
+      });
+    }
+
+    try {
+      const response = await fetch(`${backendUrl}/api/v1/workflows/stage/${stageId}/generate-stream`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ initialPrompt }),
+      });
+
+      if (!response.ok) {
+        const errText = await response.text();
+        throw new Error(`Failed to generate: ${response.statusText} - ${errText}`);
+      }
+
+      const reader = response.body?.getReader();
+      if (!reader) throw new Error('No response body');
+
+      const decoder = new TextDecoder();
+      let buffer = '';
+      let fullContent = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (!trimmed.startsWith('data: ')) continue;
+          try {
+            const data = JSON.parse(trimmed.slice(6));
+            if (data.type === 'chunk') {
+              fullContent += data.content;
+              set({ streamingContent: fullContent });
+            } else if (data.type === 'error') {
+              throw new Error(data.message);
+            }
+          } catch (e) {
+            if (e instanceof SyntaxError) continue;
+            throw e;
+          }
+        }
+      }
+
+      await get().loadWorkflow(workflow.projectId);
+      set({ isGenerating: false, streamingContent: '' });
+    } catch (error) {
+      set({ error: (error as Error).message, isGenerating: false, streamingContent: '' });
+      await get().loadWorkflow(workflow.projectId);
+    }
+  },
+
   updateStageContent: async (content) => {
     const { currentStage, backendUrl } = get();
     if (!currentStage) return;
 
-    const token = localStorage.getItem('authToken');
+    const token = get().authToken;
 
     try {
       const response = await fetch(`${backendUrl}/api/v1/workflows/stage/${currentStage.id}`, {
@@ -219,7 +332,7 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
     const { currentStage, workflow, backendUrl } = get();
     if (!currentStage) return;
 
-    const token = localStorage.getItem('authToken');
+    const token = get().authToken;
 
     try {
       const response = await fetch(`${backendUrl}/api/v1/workflows/stage/${currentStage.id}/approve`, {
@@ -248,7 +361,7 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
     const { currentStage, backendUrl } = get();
     if (!currentStage) return;
 
-    const token = localStorage.getItem('authToken');
+    const token = get().authToken;
 
     try {
       const response = await fetch(`${backendUrl}/api/v1/workflows/stage/${currentStage.id}/comments`, {
@@ -281,7 +394,7 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
     const { currentStage, backendUrl, workflow } = get();
     if (!currentStage) return;
 
-    const token = localStorage.getItem('authToken');
+    const token = get().authToken;
 
     try {
       await fetch(`${backendUrl}/api/v1/workflows/stage/${currentStage.id}/regenerate`, {
@@ -305,6 +418,10 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
 
   setBackendUrl: (url) => {
     set({ backendUrl: url });
+  },
+
+  setAuthToken: (token) => {
+    set({ authToken: token, isAuthenticated: true });
   },
 
   setAuthStatus: (authenticated, user) => {

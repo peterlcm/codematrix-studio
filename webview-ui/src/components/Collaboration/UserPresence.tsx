@@ -14,19 +14,19 @@ export function UserPresence() {
   useEffect(() => {
     // Placeholder: simulate online users
     setOnlineUsers([
-      { userId: '1', name: 'You' },
+      { userId: '1', name: '我' },
     ]);
   }, []);
 
   return (
     <div className="flex items-center gap-2">
-      <span className="text-xs text-vscode-editorWidget-foreground">Online:</span>
+      <span className="text-xs text-vscode-editorWidget-foreground">在线：</span>
       <div className="flex -space-x-2">
         {onlineUsers.map((user) => (
           <div
             key={user.userId}
             className="w-6 h-6 rounded-full bg-vscode-button-background flex items-center justify-center text-xs border-2 border-vscode-editor-background"
-            title={user.name || 'User'}
+            title={user.name || '用户'}
           >
             {user.avatarUrl ? (
               <img src={user.avatarUrl} alt={user.name} className="w-full h-full rounded-full" />
