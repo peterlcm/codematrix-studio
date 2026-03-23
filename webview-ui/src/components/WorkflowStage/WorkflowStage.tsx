@@ -1,7 +1,7 @@
-import { useState, useEffect, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import { useWorkflowStore, Stage } from '../../store/workflowStore';
 import { StageContent } from './StageContent';
-import { FileTreePanel } from '../FileTree/FileTreePanel';
+// File tree and edit removed - generated files are edited in VS Code sidebar
 
 const STAGE_ORDER = ['PRD_DESIGN', 'UI_UX_DESIGN', 'DEVELOPMENT', 'TESTING'];
 
@@ -10,32 +10,16 @@ interface WorkflowStageProps {
 }
 
 export function WorkflowStage({ stage }: WorkflowStageProps) {
-  const { updateStageContent, generateStage, workflow, isLoading, isGenerating, streamingContent } = useWorkflowStore();
-  const [isEditing, setIsEditing] = useState(false);
-  const [content, setContent] = useState('');
+  const { generateStage, workflow, isLoading, isGenerating, streamingContent } = useWorkflowStore();
   const streamEndRef = useRef<HTMLDivElement>(null);
 
-  const displayContent = stage.humanContent || stage.aiContent || '';
-
-  useEffect(() => {
-    setContent(displayContent);
-  }, [displayContent]);
+  const displayContent = stage.aiContent || '';
 
   useEffect(() => {
     if (isGenerating && streamEndRef.current) {
       streamEndRef.current.scrollIntoView({ behavior: 'smooth' });
     }
   }, [streamingContent, isGenerating]);
-
-  const handleSave = async () => {
-    await updateStageContent(content);
-    setIsEditing(false);
-  };
-
-  const handleCancel = () => {
-    setContent(displayContent);
-    setIsEditing(false);
-  };
 
   const handleGenerate = () => {
     generateStage(stage.id);
@@ -88,35 +72,6 @@ export function WorkflowStage({ stage }: WorkflowStageProps) {
               {displayContent ? '🔄 重新生成' : '🤖 AI 生成'}
             </button>
           )}
-
-          {!stage.approved && !isGenerating && stage.status !== 'PENDING' && (
-            <>
-              {isEditing ? (
-                <>
-                  <button
-                    onClick={handleSave}
-                    className="px-3 py-1.5 text-sm bg-vscode-button-background text-vscode-button-foreground rounded"
-                    disabled={isLoading}
-                  >
-                    保存
-                  </button>
-                  <button
-                    onClick={handleCancel}
-                    className="px-3 py-1.5 text-sm bg-vscode-editorWidget-background text-vscode-foreground rounded hover:bg-vscode-list-hoverBackground"
-                  >
-                    取消
-                  </button>
-                </>
-              ) : displayContent ? (
-                <button
-                  onClick={() => setIsEditing(true)}
-                  className="px-3 py-1.5 text-sm bg-vscode-editorWidget-background text-vscode-foreground rounded hover:bg-vscode-list-hoverBackground"
-                >
-                  ✏️ 编辑
-                </button>
-              ) : null}
-            </>
-          )}
         </div>
       </div>
 
@@ -154,7 +109,7 @@ export function WorkflowStage({ stage }: WorkflowStageProps) {
             ) : (
               <>
                 <p className="text-vscode-editorWidget-foreground mb-4 max-w-md">
-                  点击「AI 生成」让 AI 创建本环节的内容，或点击「编辑」手动撰写。
+                  点击「AI 生成」让 AI 创建本环节的内容。
                 </p>
                 <button
                   onClick={handleGenerate}
@@ -165,23 +120,12 @@ export function WorkflowStage({ stage }: WorkflowStageProps) {
               </>
             )}
           </div>
-        ) : isEditing ? (
-          <textarea
-            value={content}
-            onChange={(e) => setContent(e.target.value)}
-            className="w-full h-full min-h-[400px] p-4 bg-vscode-input-background text-vscode-input-foreground border border-vscode-input-border rounded resize-none focus:outline-none focus:border-vscode-focusBorder font-mono text-sm"
-            spellCheck={false}
-          />
         ) : (
           getStageComponent()
         )}
       </div>
 
-      {!isEditing && !isGenerating && stage.status !== 'PENDING' && workflow && (
-        <FileTreePanel projectId={workflow.projectId} />
-      )}
-
-      {!isEditing && !isGenerating && stage.status !== 'PENDING' && (
+      {!isGenerating && stage.status !== 'PENDING' && (
         <div className="flex items-center justify-between px-4 py-2 border-t border-vscode-editorWidget-background text-xs text-vscode-editorWidget-foreground">
           <div className="flex items-center gap-4">
             <span>版本：{stage.version}</span>
@@ -191,7 +135,8 @@ export function WorkflowStage({ stage }: WorkflowStageProps) {
           </div>
           {stage.status === 'READY_FOR_REVIEW' && (
             <span className="text-vscode-progressBar-background">
-              请审核并确认本环节成果，确认后即可进入下一环节
+              请审核并确认本环节成果，确认后即可进入下一环节<br/>
+              <span style={{opacity: 0.7}}>生成文件已在左侧 VS Code 侧边栏列出，点击直接编辑</span>
             </span>
           )}
         </div>

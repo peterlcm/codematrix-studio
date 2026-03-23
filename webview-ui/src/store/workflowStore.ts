@@ -306,6 +306,17 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
       await get().loadWorkflow(workflow.projectId);
       await get().fetchFileTree(workflow.projectId);
       set({ isGenerating: false, streamingContent: '' });
+
+      // Refresh VS Code sidebar after AI generation completes
+      if (window._vscodeApi) {
+        window._vscodeApi.postMessage({
+          type: 'command:execute',
+          payload: {
+            command: 'codematrix.refreshSidebar',
+            args: [],
+          }
+        });
+      }
     } catch (error) {
       set({ error: (error as Error).message, isGenerating: false, streamingContent: '' });
       await get().loadWorkflow(workflow.projectId);
@@ -405,6 +416,16 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
         // Reload workflow to get updated state
         if (workflow) {
           await get().loadWorkflow(workflow.projectId);
+          // Refresh VS Code sidebar to show latest generated files
+          if (window._vscodeApi) {
+            window._vscodeApi.postMessage({
+              type: 'command:execute',
+              payload: {
+                command: 'codematrix.refreshSidebar',
+                args: [],
+              }
+            });
+          }
         }
       }
     } catch (error) {
@@ -464,6 +485,16 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
       setTimeout(async () => {
         if (workflow) {
           await get().loadWorkflow(workflow.projectId);
+          // Refresh VS Code sidebar after regeneration completes
+          if (window._vscodeApi) {
+            window._vscodeApi.postMessage({
+              type: 'command:execute',
+              payload: {
+                command: 'codematrix.refreshSidebar',
+                args: [],
+              }
+            });
+          }
         }
       }, 2000);
     } catch (error) {

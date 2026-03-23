@@ -25,6 +25,7 @@ export default function ProjectList() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [showArchived, setShowArchived] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const navigate = useNavigate();
 
   // Restore token from localStorage on mount
@@ -37,7 +38,8 @@ export default function ProjectList() {
 
   const loadProjects = async () => {
     try {
-      const response = await axios.get(`${API_BASE_URL}/api/v1/projects`);
+      // Always fetch all projects including archived from backend, then filter client-side
+      const response = await axios.get(`${API_BASE_URL}/api/v1/projects/all`);
       if (response.data.success) {
         setProjects(response.data.data);
       } else {
@@ -71,6 +73,28 @@ export default function ProjectList() {
 
   const createNewProject = () => {
     navigate('/projects/create');
+  };
+
+  const handleDelete = async (projectId: string, projectName: string, event: React.MouseEvent) => {
+    event.stopPropagation();
+    if (!window.confirm(`Are you sure you want to permanently delete project "${projectName}"?\n\nThis action cannot be undone. All generated files will be deleted.`)) {
+      return;
+    }
+
+    setDeletingId(projectId);
+    try {
+      const response = await axios.delete(`${API_BASE_URL}/api/v1/projects/${projectId}`);
+      if (response.data.success) {
+        setProjects(projects.filter(p => p.id !== projectId));
+        alert(`Project "${projectName}" has been deleted successfully.`);
+      } else {
+        alert(`Delete failed: ${response.data.error || 'Unknown error'}`);
+      }
+    } catch (err: any) {
+      alert(`Delete failed: ${err.response?.data?.error || 'Network error'}`);
+    } finally {
+      setDeletingId(null);
+    }
   };
 
   const currentUser = JSON.parse(localStorage.getItem('codematrix-user') || '{}');
@@ -135,9 +159,21 @@ export default function ProjectList() {
                   >
                     <div className="project-header">
                       <h3>{project.name}</h3>
-                      {project.archivedAt && (
-                        <span className="badge archived-badge">Archived</span>
-                      )}
+                      <div className="project-header-actions">
+                        {project.archivedAt && (
+                          <span className="badge archived-badge">Archived</span>
+                        )}
+                        {project.archivedAt && (
+                          <button
+                            onClick={(e) => handleDelete(project.id, project.name, e)}
+                            disabled={deletingId === project.id}
+                            className="btn-delete"
+                            title="Delete project"
+                          >
+                            {deletingId === project.id ? 'Deleting...' : '🗑️ Delete'}
+                          </button>
+                        )}
+                      </div>
                     </div>
                     {project.description && (
                       <p className="project-description">{project.description}</p>

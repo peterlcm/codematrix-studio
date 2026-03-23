@@ -314,6 +314,41 @@
   color: #fbbf24;
 }
 
+.project-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.btn-delete {
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  background-color: #fee2e2;
+  color: #dc2626;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-delete:hover:not(:disabled) {
+  background-color: #fecaca;
+}
+
+.btn-delete:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.dark .btn-delete {
+  background-color: rgba(220, 38, 38, 0.2);
+  color: #fca5a5;
+}
+
+.dark .btn-delete:hover:not(:disabled) {
+  background-color: rgba(220, 38, 38, 0.3);
+}
+
 .project-description {
   color: #6b7280;
   font-size: 14px;

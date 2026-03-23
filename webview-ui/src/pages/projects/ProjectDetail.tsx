@@ -106,6 +106,21 @@ export default function ProjectDetail() {
     navigate(`/workflow/${id}/stage/${stageId}`);
   };
 
+  const handleCreateWorkflow = async () => {
+    try {
+      const response = await axios.post(`${API_BASE_URL}/api/v1/workflows`, {
+        projectId: id,
+      });
+      if (response.data.success) {
+        loadProject();
+      } else {
+        setError(response.data.error || 'Failed to create workflow');
+      }
+    } catch (err: any) {
+      setError(err.response?.data?.error || 'Failed to create workflow');
+    }
+  };
+
   if (loading) {
     return (
       <div className="page-container">
@@ -227,15 +242,17 @@ export default function ProjectDetail() {
               ))}
               <button
                 className="btn btn-primary btn-block"
-                onClick={() => navigate(`/workflow/${id}`)}
+                onClick={() => navigate(`/workflow/${workflow!.id}`)}
               >
                 Open Full Workflow
               </button>
             </div>
           ) : (
             <div className="empty-state">
-              <p>No workflow found. Create a workflow to start development.</p>
-              <button className="btn btn-primary">Create Workflow</button>
+              <p>No workflow found. Create a workflow to start AI-assisted development.</p>
+              <button className="btn btn-primary" onClick={handleCreateWorkflow}>
+                Create Workflow
+              </button>
             </div>
           )}
         </div>

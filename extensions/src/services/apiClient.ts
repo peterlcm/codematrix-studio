@@ -217,6 +217,33 @@ export class ApiClient {
     }
   }
 
+  async archiveProject(projectId: string): Promise<ApiResponse> {
+    try {
+      const response = await this.client.post(`/api/v1/projects/${projectId}/archive`);
+      return response.data;
+    } catch (error) {
+      return this.handleError(error);
+    }
+  }
+
+  async unarchiveProject(projectId: string): Promise<ApiResponse> {
+    try {
+      const response = await this.client.post(`/api/v1/projects/${projectId}/unarchive`);
+      return response.data;
+    } catch (error) {
+      return this.handleError(error);
+    }
+  }
+
+  async getAllProjects(): Promise<ApiResponse> {
+    try {
+      const response = await this.client.get('/api/v1/projects/all');
+      return response.data;
+    } catch (error) {
+      return this.handleError(error);
+    }
+  }
+
   // Workflow endpoints
   async getWorkflow(projectId: string): Promise<ApiResponse> {
     try {
@@ -359,5 +386,33 @@ export class ApiClient {
       success: false,
       error: 'Unknown error occurred',
     };
+  }
+
+  // File endpoints
+  async getFileTree(projectId: string): Promise<ApiResponse> {
+    try {
+      const response = await this.client.get(`/api/v1/files/${projectId}/tree`);
+      return response.data;
+    } catch (error) {
+      return this.handleError(error);
+    }
+  }
+
+  async readFile(projectId: string, filePath: string): Promise<ApiResponse> {
+    try {
+      const response = await this.client.get(`/api/v1/files/${projectId}/read/${filePath}`);
+      return response.data;
+    } catch (error) {
+      return this.handleError(error);
+    }
+  }
+
+  async writeFile(projectId: string, filePath: string, content: string): Promise<ApiResponse> {
+    try {
+      const response = await this.client.put(`/api/v1/files/${projectId}/write/${filePath}`, { content });
+      return response.data;
+    } catch (error) {
+      return this.handleError(error);
+    }
   }
 }

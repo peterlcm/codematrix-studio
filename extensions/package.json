@@ -54,6 +54,14 @@
         "command": "codematrix.openSettings",
         "title": "CodeMatrix: Open Settings",
         "icon": "$(gear)"
+      },
+      {
+        "command": "codematrix.archiveProject",
+        "title": "CodeMatrix: Archive Project"
+      },
+      {
+        "command": "codematrix.deleteProject",
+        "title": "CodeMatrix: Delete Project (irreversible)"
       }
     ],
     "viewsContainers": {
@@ -104,6 +112,18 @@
         {
           "command": "codematrix.openSettings",
           "when": "view == codematrix.workflowSidebar"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "codematrix.archiveProject",
+          "when": "view == codematrix.workflowSidebar && viewItem =~ /^project$/",
+          "group": "1_modification"
+        },
+        {
+          "command": "codematrix.deleteProject",
+          "when": "view == codematrix.workflowSidebar && viewItem =~ /^project$/",
+          "group": "2_operation"
         }
       ]
     }

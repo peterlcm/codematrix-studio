@@ -53,9 +53,7 @@ export default function App() {
           if (initPayload.token) {
             useWorkflowStore.getState().setAuthToken(initPayload.token);
           }
-          loadWorkflow(initPayload.projectId).then(() => {
-            useWorkflowStore.getState().fetchFileTree(initPayload.projectId);
-          });
+          loadWorkflow(initPayload.projectId);
           break;
         }
         case 'workflow:load':

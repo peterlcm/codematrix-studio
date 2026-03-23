@@ -1,8 +1,11 @@
 import { Router, Response } from 'express';
 import { z } from 'zod';
+import * as fs from 'fs';
+import * as path from 'path';
 import { prisma } from '../../database/db';
 import { authMiddleware, AuthRequest } from '../../middleware/auth';
 import { requireProjectOwner, Permission, hasProjectPermission } from '../../middleware/rbac';
+import { FileWriter } from '../../services/file/FileWriter';
 import { logger } from '../../utils/logger';
 import { ProjectRole } from '@prisma/client';
 
@@ -28,6 +31,7 @@ projectRoutes.get('/', authMiddleware, async (req: AuthRequest, res: Response) =
           { ownerId: req.userId },
           { team: { some: { userId: req.userId } } },
         ],
+        archivedAt: null,
       },
       include: {
         owner: {
@@ -53,6 +57,44 @@ projectRoutes.get('/', authMiddleware, async (req: AuthRequest, res: Response) =
     res.status(500).json({
       success: false,
       error: 'Failed to get projects',
+    });
+  }
+});
+
+// Get all projects for current user including archived (for management UI)
+projectRoutes.get('/all', authMiddleware, async (req: AuthRequest, res: Response) => {
+  try {
+    const projects = await prisma.project.findMany({
+      where: {
+        OR: [
+          { ownerId: req.userId },
+          { team: { some: { userId: req.userId } } },
+        ],
+      },
+      include: {
+        owner: {
+          select: { id: true, email: true, name: true, avatarUrl: true },
+        },
+        team: {
+          include: {
+            user: {
+              select: { id: true, email: true, name: true, avatarUrl: true },
+            },
+          },
+        },
+      },
+      orderBy: [{ archivedAt: 'asc' }, { updatedAt: 'desc' }],
+    });
+
+    res.json({
+      success: true,
+      data: projects,
+    });
+  } catch (error) {
+    logger.error({ error }, 'Failed to get all projects');
+    res.status(500).json({
+      success: false,
+      error: 'Failed to get all projects',
     });
   }
 });
@@ -210,7 +252,7 @@ projectRoutes.patch('/:id', authMiddleware, async (req: AuthRequest, res: Respon
   }
 });
 
-// Delete project
+// Delete project - only archived projects can be deleted
 projectRoutes.delete('/:id', authMiddleware, async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
@@ -227,11 +269,44 @@ projectRoutes.delete('/:id', authMiddleware, async (req: AuthRequest, res: Respo
       });
     }
 
+    // Only allow deleting archived projects
+    if (!existing.archivedAt) {
+      return res.status(400).json({
+        success: false,
+        error: 'Only archived projects can be deleted. Please archive the project first.',
+      });
+    }
+
+    // Delete from database
     await prisma.project.delete({
       where: { id },
     });
 
-    logger.info({ projectId: id, userId: req.userId }, 'Project deleted');
+    // Delete generated files from disk
+    const projectDir = FileWriter.getProjectDir(id);
+    try {
+      if (fs.existsSync(projectDir)) {
+        // Recursively delete directory
+        const deleteRecursive = (dir: string) => {
+          const entries = fs.readdirSync(dir);
+          for (const entry of entries) {
+            const fullPath = path.join(dir, entry);
+            if (fs.statSync(fullPath).isDirectory()) {
+              deleteRecursive(fullPath);
+            } else {
+              fs.unlinkSync(fullPath);
+            }
+          }
+          fs.rmdirSync(dir);
+        };
+        deleteRecursive(projectDir);
+        logger.info({ projectId: id }, 'Generated files deleted from disk');
+      }
+    } catch (fileError) {
+      logger.warn({ projectId: id, error: String(fileError) }, 'Failed to delete some generated files');
+    }
+
+    logger.info({ projectId: id, userId: req.userId }, 'Project deleted completely');
 
     res.json({
       success: true,

@@ -167,6 +167,71 @@ workflowRoutes.post('/', authMiddleware, async (req: AuthRequest, res: Response)
   }
 });
 
+// Get workflow by ID
+workflowRoutes.get('/:id', authMiddleware, async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+
+    const workflow = await prisma.workflow.findUnique({
+      where: { id },
+      include: {
+        stages: {
+          orderBy: { createdAt: 'asc' },
+          include: {
+            approvedBy: {
+              select: { id: true, email: true, name: true, avatarUrl: true },
+            },
+            comments: {
+              orderBy: { createdAt: 'asc' },
+              include: {
+                author: {
+                  select: { id: true, email: true, name: true, avatarUrl: true },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!workflow) {
+      return res.status(404).json({
+        success: false,
+        error: 'Workflow not found',
+      });
+    }
+
+    // Check project access
+    const project = await prisma.project.findFirst({
+      where: {
+        id: workflow.projectId,
+        OR: [
+          { ownerId: req.userId },
+          { team: { some: { userId: req.userId } } },
+        ],
+      },
+    });
+
+    if (!project) {
+      return res.status(404).json({
+        success: false,
+        error: 'Workflow not found or unauthorized',
+      });
+    }
+
+    res.json({
+      success: true,
+      data: workflow,
+    });
+  } catch (error) {
+    logger.error({ error }, 'Failed to get workflow');
+    res.status(500).json({
+      success: false,
+      error: 'Failed to get workflow',
+    });
+  }
+});
+
 // Get stage by ID
 workflowRoutes.get('/stage/:stageId', authMiddleware, async (req: AuthRequest, res: Response) => {
   try {
