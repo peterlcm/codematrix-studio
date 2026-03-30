@@ -295,7 +295,7 @@ export class ApiClient {
         return { success: false, error: 'Workflow not found' };
       }
 
-      const workflow = workflowResponse.data;
+      const workflow = workflowResponse.data as any;
       const currentStage = workflow.stages?.find(
         (s: { status: string; stageType: string }) =>
           s.status === 'READY_FOR_REVIEW' || s.status === 'REVISION_REQUESTED'
@@ -358,7 +358,7 @@ export class ApiClient {
         return { success: false, error: 'Failed to get workflow' };
       }
 
-      const workflow = workflowResponse.data;
+      const workflow = workflowResponse.data as any;
       const prdStage = workflow.stages?.find((s: { stageType: string }) => s.stageType === 'PRD_DESIGN');
       const uiDesignStage = workflow.stages?.find((s: { stageType: string }) => s.stageType === 'UI_UX_DESIGN');
 

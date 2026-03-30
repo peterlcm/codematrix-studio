@@ -116,9 +116,9 @@ export interface Project {
   id: string;
   name: string;
   description?: string;
-  ownerId: string;
-  createdAt: string;
-  updatedAt: string;
+  ownerId?: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface TeamMember {
@@ -253,7 +253,7 @@ function createEventEmitter(): EventEmitter {
         try {
           handler(...args);
         } catch (error) {
-          logger.error({ error, event }, 'Event handler error');
+          logger.error('Event handler error', { error, event });
         }
       });
     },

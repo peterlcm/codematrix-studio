@@ -3,7 +3,8 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { WebviewManager } from './webview/WebviewManager';
 import { MainPanel } from './webview/MainPanel';
-import { WorkflowSidebarProvider, WorkflowTreeItem } from './sidebar/WorkflowSidebarProvider';
+import { WorkflowSidebarProvider } from './sidebar/WorkflowSidebarProvider';
+import type { WorkflowTreeItem } from './sidebar/WorkflowSidebarProvider';
 import { ApiClient } from './services/apiClient';
 import { logger } from './utils/logger';
 
@@ -92,8 +93,9 @@ function registerCommands(context: vscode.ExtensionContext) {
     vscode.commands.registerCommand('codematrix.openWorkflow', async () => {
       try {
         const result = await apiClient.getAllProjects();
+        const projects = (result.data || []) as any[];
 
-        if (!result.success || !result.data || result.data.length === 0) {
+        if (!result.success || projects.length === 0) {
           const createNew = await vscode.window.showInformationMessage(
             '暂无项目，是否创建新项目？',
             '创建项目',
@@ -107,7 +109,7 @@ function registerCommands(context: vscode.ExtensionContext) {
         }
 
         // Show quick pick with all projects including archived
-        const items = (result.data || []).map((p: any) => ({
+        const items = projects.map((p) => ({
           label: p.archivedAt ? `$(archive) ${p.name} (已归档)` : p.name,
           description: p.archivedAt ? '已归档' : p.description || '',
           detail: p.archivedAt ? `归档于: ${new Date(p.archivedAt).toLocaleString()}` : '',
@@ -438,7 +440,8 @@ function registerAuthCommands(context: vscode.ExtensionContext) {
     vscode.commands.registerCommand('codematrix.openGeneratedFile', async (projectId: string, filePath: string) => {
       try {
         const result = await apiClient.readFile(projectId, filePath);
-        if (!result.success || typeof result.data?.content !== 'string') {
+        const fileData = result.data as { content?: string } | undefined;
+        if (!result.success || typeof fileData?.content !== 'string') {
           vscode.window.showErrorMessage(`无法读取文件：${result.error}`);
           return;
         }
@@ -454,7 +457,7 @@ function registerAuthCommands(context: vscode.ExtensionContext) {
         }
 
         // Write content to temp file
-        fs.writeFileSync(tempFilePath, result.data.content, 'utf-8');
+        fs.writeFileSync(tempFilePath, fileData.content, 'utf-8');
 
         // Track this file for saving back later
         openedGeneratedFiles.set(tempFilePath, { projectId, filePath });

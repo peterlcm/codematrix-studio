@@ -4,10 +4,11 @@ import * as path from 'path';
 import { ApiClient } from '../services/apiClient';
 import { logger } from '../utils/logger';
 
-interface WorkflowTreeItem extends vscode.TreeItem {
+export interface WorkflowTreeItem extends vscode.TreeItem {
   projectId?: string;
   filePath?: string;
-  itemType?: 'project' | 'stage' | 'files-root' | 'directory' | 'file';
+  itemType?: 'project' | 'stage' | 'files-root' | 'directory' | 'file' | 'action';
+  actionType?: 'create-project' | 'login' | 'refresh' | 'settings';
 }
 
 export interface FileTreeNode {
@@ -58,25 +59,131 @@ export class WorkflowSidebarProvider implements vscode.TreeDataProvider<Workflow
 
   async getChildren(element?: WorkflowTreeItem): Promise<WorkflowTreeItem[]> {
     if (!element) {
-      // Root level
-      const openStudioItem = this.createItem(
-        '🚀 打开 CodeMatrix Studio',
-        '',
-        'codematrix.openMain'
+      // Root level - show header with actions
+      const items: WorkflowTreeItem[] = [];
+      
+      // Header with logo/title
+      const headerItem = this.createItem(
+        '🔷 CodeMatrix Studio',
+        'AI 协作开发平台',
+        undefined,
+        'header'
       );
+      items.push(headerItem);
 
       if (!this.apiClient.isAuthenticated()) {
+        // Not logged in - show login prompt
         const loginItem = this.createItem(
-          '$(sign-in) 请先登录',
-          '点击标题栏的登录按钮',
+          '$(sign-in) 登录 / 注册',
+          '点击登录到 CodeMatrix',
           'codematrix.login',
-          'command'
+          'action',
+          undefined,
+          undefined,
+          undefined,
+          undefined,
+          'login'
         );
-        return [openStudioItem, loginItem];
+        
+        const createProjectItem = this.createItem(
+          '$(add) 创建新项目',
+          '初始化新项目',
+          'codematrix.initProject',
+          'action',
+          undefined,
+          undefined,
+          undefined,
+          undefined,
+          'create-project'
+        );
+        
+        const settingsItem = this.createItem(
+          '$(gear) 设置',
+          '配置后端和 API 密钥',
+          'codematrix.openSettings',
+          'action',
+          undefined,
+          undefined,
+          undefined,
+          undefined,
+          'settings'
+        );
+        
+        return [...items, loginItem, createProjectItem, settingsItem];
       }
 
+      // Logged in - show user info and actions
+      const userInfo = await this.getUserInfo();
+      if (userInfo) {
+        const userItem = this.createItem(
+          `$(account) ${userInfo.name || userInfo.email}`,
+          '已登录',
+          undefined,
+          'user'
+        );
+        items.push(userItem);
+      }
+
+      // Quick actions
+      const newProjectItem = this.createItem(
+        '$(add) 新建项目',
+        '创建新项目',
+        'codematrix.initProject',
+        'action',
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        'create-project'
+      );
+      
+      const openProjectItem = this.createItem(
+        '$(folder-opened) 打开项目',
+        '打开已有项目',
+        'codematrix.openWorkflow',
+        'action',
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        'open-project'
+      );
+      
+      const settingsItem = this.createItem(
+        '$(gear) 设置',
+        '配置后端和 API',
+        'codematrix.openSettings',
+        'action',
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        'settings'
+      );
+      
+      const refreshItem = this.createItem(
+        '$(refresh) 刷新',
+        '刷新项目列表',
+        'codematrix.refreshSidebar',
+        'action',
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        'refresh'
+      );
+
+      // Divider
+      const dividerItem = this.createItem(
+        '─── 项目 ───',
+        '',
+        undefined,
+        'divider'
+      );
+      
       const projectItems = await this.getProjectItems();
-      return [openStudioItem, ...projectItems];
+      
+      return [...items, newProjectItem, openProjectItem, settingsItem, refreshItem, dividerItem, ...projectItems];
     }
 
     // Project node: show stages + generated files
@@ -87,6 +194,7 @@ export class WorkflowSidebarProvider implements vscode.TreeDataProvider<Workflow
         'AI 生成的产物文件',
         undefined,
         'files-root',
+        undefined,
         undefined,
         undefined,
         undefined,
@@ -113,6 +221,22 @@ export class WorkflowSidebarProvider implements vscode.TreeDataProvider<Workflow
     }
 
     return [];
+  }
+
+  private async getUserInfo(): Promise<{ name: string; email: string } | null> {
+    try {
+      const result = await this.apiClient.getCurrentUser();
+      if (result.success && result.data) {
+        const user = result.data as any;
+        return {
+          name: user.name || user.email?.split('@')[0] || '用户',
+          email: user.email || ''
+        };
+      }
+    } catch (error) {
+      logger.error('Failed to get user info', { error: String(error) });
+    }
+    return null;
   }
 
   private async getProjectItems(): Promise<WorkflowTreeItem[]> {
@@ -230,27 +354,40 @@ export class WorkflowSidebarProvider implements vscode.TreeDataProvider<Workflow
     id?: string,
     stageType?: string,
     status?: string,
-    projectId?: string
+    projectId?: string,
+    actionType?: string
   ): WorkflowTreeItem {
     const item = new vscode.TreeItem(label);
 
     item.description = description;
 
-    // Set collapsible state
+    // Set collapsible state based on item type
     if (itemType === 'project') {
       item.collapsibleState = vscode.TreeItemCollapsibleState.Expanded;
     } else if (itemType === 'files-root' || itemType === 'directory') {
       item.collapsibleState = vscode.TreeItemCollapsibleState.Expanded;
+    } else if (itemType === 'header' || itemType === 'user' || itemType === 'divider') {
+      item.collapsibleState = vscode.TreeItemCollapsibleState.None;
+      item.contextValue = itemType;
     } else {
       item.collapsibleState = vscode.TreeItemCollapsibleState.None;
     }
 
+    // Handle command with or without arguments
     if (commandId) {
-      item.command = {
-        command: commandId,
-        title: label,
-        arguments: [item],
-      };
+      // For action items, don't pass item as argument
+      if (itemType === 'action') {
+        item.command = {
+          command: commandId,
+          title: label,
+        };
+      } else {
+        item.command = {
+          command: commandId,
+          title: label,
+          arguments: [item],
+        };
+      }
     }
 
     // Set icon based on type and status
@@ -260,12 +397,11 @@ export class WorkflowSidebarProvider implements vscode.TreeDataProvider<Workflow
       item.iconPath = new vscode.ThemeIcon('folder-opened');
     }
 
-    // Store additional data
-    (item as WorkflowTreeItem).id = id || '';
-    (item as WorkflowTreeItem).stageType = stageType;
-    (item as WorkflowTreeItem).status = status;
-    (item as WorkflowTreeItem).projectId = projectId;
-    (item as WorkflowTreeItem).itemType = itemType;
+    // Store additional data as context value
+    (item as any).stageType = stageType;
+    (item as any).status = status;
+    (item as any).projectId = projectId;
+    (item as any).itemType = itemType;
 
     // Set context value for menu filtering
     if (itemType === 'project') {
@@ -284,9 +420,9 @@ export class WorkflowSidebarProvider implements vscode.TreeDataProvider<Workflow
     icon: vscode.ThemeIcon
   ): WorkflowTreeItem {
     const item = new vscode.TreeItem(name);
-    item.filePath = filePath;
-    item.projectId = projectId;
-    item.itemType = itemType;
+    (item as any).filePath = filePath;
+    (item as any).projectId = projectId;
+    (item as any).itemType = itemType;
     item.description = '';
     item.iconPath = icon;
 
